@@ -1,3 +1,11 @@
+# Bienvenidos a mi primera practica en git y github, es mi primer commit
+
+¡Hola! Esta es la presentación oficial de mi primer repositorio utilizando Git y GitHub.
+
+![Imagen de perfil de cómic](./claudio_md.jpg)
+
+---
+
 # Entorno Virtual Python
 
 Proyecto con configuración básica de entorno virtual en Python y control de versiones con Git listo para GitHub.
@@ -10,6 +18,7 @@ Proyecto con configuración básica de entorno virtual en Python y control de ve
 ├── .env.example        # Plantilla de variables de entorno
 ├── requirements.txt    # Dependencias del proyecto
 ├── main.py             # Punto de entrada / script de prueba
+├── claudio_md.jpg      # Imagen de presentación
 └── readme.md           # Documentación del proyecto
 ```
 

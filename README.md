@@ -14,7 +14,7 @@ Proyecto configurado con entorno virtual (`.venv`), control de dependencias con 
 
 ## 📌 Guía de Evaluación Paso a Paso (100% Offline / Sin API Key)
 
-Si eres evaluador y **no dispones de una API Key de Groq**, el proyecto está completamente preparado para ser verificado en un entorno local y aislado. No se requiere conexión a la API real ni saldo en proveedores de IA para validar el 100% de la rúbrica del Gate 1.
+PARA EFECTOS DE EVALUACIÓN y ** SI NO SE DISPONE DE UNA API Key de Groq**, el proyecto está completamente preparado para ser verificado en un entorno local y aislado. No se requiere conexión a la API real ni saldo en proveedores de IA para validar el 100% de la rúbrica del Gate 1.
 
 Sigue estos pasos en tu terminal para ejecutar las pruebas:
 

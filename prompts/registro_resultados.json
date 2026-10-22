@@ -1,0 +1,208 @@
+{
+  "fecha": "2026-10-22",
+  "hora": "16:12:22",
+  "timestamp_iso": "2026-10-22T19:12:22.656140+00:00",
+  "resumen_ejecucion": {
+    "total_prompts": 3,
+    "iteraciones_por_prompt": 3,
+    "total_ejecuciones": 9,
+    "ejecuciones_validas": 9,
+    "ejecuciones_fallidas": 0,
+    "tasa_exito_global": "9/9 (100.0%)",
+    "meta_3_de_3_cumplida": true
+  },
+  "detalle_por_prompt": [
+    {
+      "nombre": "clasificar_incidente",
+      "descripcion": "Clasificación y triaje de incidentes de TI",
+      "claves_esperadas": [
+        "resumen",
+        "categoria",
+        "prioridad"
+      ],
+      "total_iteraciones": 3,
+      "validas": 3,
+      "fallidas": 0,
+      "tasa_exito": "3/3 (100.0%)",
+      "consistente": true,
+      "iteraciones": [
+        {
+          "iteracion": 1,
+          "valida": true,
+          "claves_detectadas": [
+            "resumen",
+            "categoria",
+            "prioridad"
+          ],
+          "salida": {
+            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos en producción, provocando tiempos de respuesta muy lentos para los clientes",
+            "categoria": "Rendimiento de base de datos",
+            "prioridad": "alta"
+          },
+          "error": null,
+          "status_code": 200
+        },
+        {
+          "iteracion": 2,
+          "valida": true,
+          "claves_detectadas": [
+            "resumen",
+            "categoria",
+            "prioridad"
+          ],
+          "salida": {
+            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos de producción que causa tiempos de respuesta muy lentos para los clientes",
+            "categoria": "Rendimiento",
+            "prioridad": "alta"
+          },
+          "error": null,
+          "status_code": 200
+        },
+        {
+          "iteracion": 3,
+          "valida": true,
+          "claves_detectadas": [
+            "resumen",
+            "categoria",
+            "prioridad"
+          ],
+          "salida": {
+            "resumen": "Servidor de base de datos en producción con sobrecarga crítica de CPU (98%) y tiempos de respuesta muy lentos para los clientes",
+            "categoria": "rendimiento de base de datos",
+            "prioridad": "alta"
+          },
+          "error": null,
+          "status_code": 200
+        }
+      ]
+    },
+    {
+      "nombre": "analisis_sentimiento_soporte",
+      "descripcion": "Análisis de sentimiento y urgencia en reclamos de clientes",
+      "claves_esperadas": [
+        "resumen",
+        "sentimiento",
+        "urgencia"
+      ],
+      "total_iteraciones": 3,
+      "validas": 3,
+      "fallidas": 0,
+      "tasa_exito": "3/3 (100.0%)",
+      "consistente": true,
+      "iteraciones": [
+        {
+          "iteracion": 1,
+          "valida": true,
+          "claves_detectadas": [
+            "resumen",
+            "sentimiento",
+            "urgencia"
+          ],
+          "salida": {
+            "resumen": "Usuario lleva 3 días sin poder acceder a su cuenta pagada y reclama una solución inmediata o la cancelación del servicio",
+            "sentimiento": "negativo",
+            "urgencia": "alta"
+          },
+          "error": null,
+          "status_code": 200
+        },
+        {
+          "iteracion": 2,
+          "valida": true,
+          "claves_detectadas": [
+            "resumen",
+            "sentimiento",
+            "urgencia"
+          ],
+          "salida": {
+            "resumen": "Usuario lleva 3 días sin poder acceder a su cuenta pagada y exige una solución inmediata o la cancelación del servicio.",
+            "sentimiento": "negativo",
+            "urgencia": "alta"
+          },
+          "error": null,
+          "status_code": 200
+        },
+        {
+          "iteracion": 3,
+          "valida": true,
+          "claves_detectadas": [
+            "resumen",
+            "sentimiento",
+            "urgencia"
+          ],
+          "salida": {
+            "resumen": "Usuario lleva 3 días sin poder acceder a su cuenta pagada y exige una solución inmediata o la cancelación del servicio",
+            "sentimiento": "negativo",
+            "urgencia": "alta"
+          },
+          "error": null,
+          "status_code": 200
+        }
+      ]
+    },
+    {
+      "nombre": "extraccion_entidades_logistica",
+      "descripcion": "Extracción estructurada de datos de pedidos o despachos",
+      "claves_esperadas": [
+        "numero_pedido",
+        "destino",
+        "estado_envio"
+      ],
+      "total_iteraciones": 3,
+      "validas": 3,
+      "fallidas": 0,
+      "tasa_exito": "3/3 (100.0%)",
+      "consistente": true,
+      "iteraciones": [
+        {
+          "iteracion": 1,
+          "valida": true,
+          "claves_detectadas": [
+            "numero_pedido",
+            "destino",
+            "estado_envio"
+          ],
+          "salida": {
+            "numero_pedido": "ORD-98234",
+            "destino": "Valparaíso",
+            "estado_envio": "en_transito"
+          },
+          "error": null,
+          "status_code": 200
+        },
+        {
+          "iteracion": 2,
+          "valida": true,
+          "claves_detectadas": [
+            "numero_pedido",
+            "destino",
+            "estado_envio"
+          ],
+          "salida": {
+            "numero_pedido": "ORD-98234",
+            "destino": "Valparaíso",
+            "estado_envio": "en_transito"
+          },
+          "error": null,
+          "status_code": 200
+        },
+        {
+          "iteracion": 3,
+          "valida": true,
+          "claves_detectadas": [
+            "numero_pedido",
+            "destino",
+            "estado_envio"
+          ],
+          "salida": {
+            "numero_pedido": "ORD-98234",
+            "destino": "Valparaíso",
+            "estado_envio": "en_transito"
+          },
+          "error": null,
+          "status_code": 200
+        }
+      ]
+    }
+  ]
+}

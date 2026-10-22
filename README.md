@@ -447,3 +447,54 @@ El archivo `prompts/registro_resultados.json` queda registrado con la estructura
   "detalle_por_prompt": [ ... ]
 }
 ```
+
+## Auditoría Técnica con DeepSeek Harness
+
+Para garantizar el cumplimiento del 100% de la rúbrica del Gate 1, el repositorio fue sometido a una auditoría técnica automatizada utilizando el siguiente prompt de evaluación estricta:
+
+<details>
+<summary><b>Ver Prompt de Auditoría DeepSeek Harness</b></summary>
+
+```text
+Actúa como un Auditor Técnico Principal y Senior Engineer especializado en Desarrollo de Software con IA en Python...
+[Actúa como un Auditor Técnico Principal y Senior Engineer especializado en Desarrollo de Software con IA en Python. Tu objetivo es realizar una auditoría rigurosa, defensiva e integral del repositorio para verificar el cumplimiento del 100% de la rúbrica del Gate 1.
+
+Ejecuta y verifica punto por punto los siguientes requerimientos técnicos:
+
+1. Dimensión Python y Código (20%):
+   - Evalúa la arquitectura modular y limpia de `app.py`.
+   - Ejecuta en terminal: `pytest -ra`
+   - Confirma que la suite de pruebas unitarias (`test_app.py`) obtenga `6 passed, 0 failed, 0 xfailed` utilizando mocks de red y validación estricta de esquema.
+
+2. Dimensión Consumo de API (25%):
+   - Ejecuta: `python app.py`
+   - Valida la conexión HTTP estructurada vía `requests` hacia el endpoint `/chat/completions`.
+   - Comprueba que la respuesta parsee correctamente `structured_output` (`resumen`, `categoria`, `prioridad`) y preserve la metadata de consumo en `data.usage` (`prompt_tokens`, `completion_tokens`, `total_tokens`).
+
+3. Dimensión Manejo de Excepciones y Resiliencia (Consumo API / Código):
+   - Ejecuta: `python app.py --test-exceptions`
+   - Verifica la interceptación y encapsulación en JSON de los errores:
+     * `Timeout` (forzado con `timeout=0.001`).
+     * `RateLimitExceeded` (HTTP 429).
+     * `JSONDecodeError` (respuestas HTML no parseables).
+     * `ConnectionError`.
+   - Asegura la navegación defensiva dentro del payload utilizando validaciones `isinstance()`.
+
+4. Dimensión Seguridad y Credenciales (10%):
+   - Valida la función anti-exfiltración `is_trusted_url` para garantizar que el encabezado `Authorization: Bearer <API_KEY>` NO sea enviado a hosts externos no confiables (ej. `httpbin.org`).
+   - Revisa que `SSL_VERIFY=true` sea obligatorio en `.env` y `.env.example`.
+   - Ejecuta `git check-ignore -v .env` y `git status` para certificar que ni `.env` ni `.venv` sean rastreados por Git.
+
+5. Dimensión Prompt y Respuesta (15%):
+   - Inspecciona `prompts/banco.py` (mínimo 3 prompts estructurados con contrato JSON).
+   - Ejecuta: `python -m prompts.test_consistencia`
+   - Comprueba que se ejecuten 3 iteraciones consecutivas por cada prompt y se actualice `prompts/registro_resultados.json` confirmando un 100% de éxito (9/9 ejecuciones válidas).
+
+6. Dimensión Entorno y Repositorio (10%):
+   - Verifica la existencia de `.venv`, `requirements.txt` con versiones fijadas, `.env.example`, `informe_ejecucion.md` y `README.md` (con diagramas Mermaid renderizables).
+
+Entregable requerido:
+Genera un informe de auditoría detallado en formato Markdown (`REPORTE_VERIFICACION_FINAL.md`) con la fecha, entorno, trazas de ejecución, análisis de seguridad y una tabla comparativa de resultados por cada una de las 6 dimensiones.]
+```
+
+</details>

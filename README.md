@@ -139,10 +139,11 @@ flowchart TD
 
 ## ⚙️ Guía Paso a Paso de Instalación y Ejecución
 
-### 1. Clonar o Abrir el Directorio del Proyecto
-Navega a la carpeta del proyecto en tu terminal:
-```powershell
-cd "c:\Users\Anto\Desktop\skill clases\entorno virtual"
+### 1. Clonar el repositorio e ingresar al directorio
+
+```bash
+git clone <URL_DE_TU_REPOSITORIO>
+cd <NOMBRE_DE_LA_CARPETA>
 ```
 
 ### 2. Crear el Entorno Virtual (`.venv`)

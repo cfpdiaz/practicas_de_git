@@ -18,44 +18,89 @@ Proyecto configurado con entorno virtual (`.venv`), control de dependencias con 
 
 ```mermaid
 flowchart TD
-    A["CLI / Usuario (app.py --task | --prompt)"] --> B["Carga de Configuración (.env / dotenv)"]
-    B --> C{"¿URL Confiable? (is_trusted_url)"}
-    C -- "Sí (Groq / OpenAI / OpenRouter)" --> D["Adjuntar Header Authorization: Bearer"]
-    C -- "No (Endpoint Externo / Inseguro)" --> E["Omitir Token de Autorización (Prevenir Fuga)"]
-    D --> F["Petición HTTP con Timeout y SSL_VERIFY"]
-    E --> F
-    F --> G{"Evaluación de Respuesta y Errores"}
-    G -- "Timeout" --> H["Manejo Timeout (error_type: Timeout)"]
-    G -- "HTTP 429" --> I["Manejo RateLimitExceeded (Retry-After)"]
-    G -- "HTTP 4xx/5xx" --> J["Manejo HTTPError"]
-    G -- "HTML / Texto No-JSON" --> K["Manejo JSONDecodeError"]
-    G -- "HTTP 200 OK" --> L{"Validación de Esquema JSON"}
-    L -- "Contrato Válido (resumen, categoria, prioridad)" --> M["Retorno 200 con structured_output y data.usage"]
-    L -- "Contrato Incompleto" --> N["Manejo SchemaValidationError"]
+    subgraph Entrada ["Interfaz de Línea de Comandos (CLI)"]
+        CLI["app.py --task / --test-exceptions"]
+        CONSISTENCY["prompts/test_consistencia.py"]
+        TESTS["pytest / test_app.py"]
+    end
+
+    subgraph Config ["Configuración y Seguridad"]
+        ENV[".env / python-dotenv"]
+        SEC["is_trusted_url + TLS SSL_VERIFY=true"]
+    end
+
+    subgraph Prompts ["Módulo de Prompts"]
+        BANK["prompts/banco.py"]
+    end
+
+    subgraph Core ["Aplicación Principal (app.py)"]
+        FETCH["fetch_api_data"]
+        EX_HAND["Manejador de Excepciones de Red"]
+        SCHEMA["Validador Estricto de Esquema JSON"]
+    end
+
+    subgraph External ["Proveedor Externo"]
+        GROQ["Groq API: llama-3.3-70b-versatile"]
+    end
+
+    subgraph Output ["Salida y Evidencia"]
+        JSON_OUT["Respuesta JSON Estructurada"]
+        REPORT["informe_ejecucion.md / registro_resultados.json"]
+    end
+
+    CLI -->|Lee variables| ENV
+    CLI -->|Carga plantilla| BANK
+    CONSISTENCY -->|Lee 3 prompts| BANK
+    TESTS -->|Mocks de red| FETCH
+
+    CLI -->|Ejecuta consulta| FETCH
+    CONSISTENCY -->|3 iteraciones seguidas| FETCH
+
+    FETCH -->|Valida dominio seguro| SEC
+    SEC -->|Petición POST HTTPS| GROQ
+
+    GROQ -->|Respuesta HTTP / JSON| EX_HAND
+    EX_HAND -->|JSON Bruto| SCHEMA
+
+    SCHEMA -->|Éxito / SchemaValidationError| JSON_OUT
+    JSON_OUT -->|Registra evidencia| REPORT
 ```
 
-### 2. Diagrama de Secuencia: Ciclo de Vida de Petición Estructurada
+### 2. Diagrama de Flujo de Ejecución
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as Usuario / Test Runner
-    participant App as app.fetch_api_data
-    participant Sec as Seguridad (is_trusted_url)
-    participant Net as requests (HTTP Client)
-    participant API as Proveedor IA (Groq / OpenRouter)
-    participant Val as Validador de Esquema
+flowchart TD
+    A["Inicio: python app.py"] --> B["Cargar variables desde .env"]
+    B --> C["Obtener Prompts desde prompts/banco.py"]
+    C --> D{"¿Es una URL/Dominio Confiable?"}
 
-    Dev->>App: Invoca petición (task / prompt)
-    App->>Sec: Verifica destino (URL / Host)
-    Sec-->>App: Dominio confiable verificado
-    App->>Net: POST /chat/completions con system & user prompt
-    Net->>API: Payload JSON + Bearer Token
-    API-->>Net: HTTP 200 OK con choices y usage
-    Net-->>App: Raw Response
-    App->>Val: Parsea y valida llaves requeridas
-    Val-->>App: Validación exitosa
-    App-->>Dev: JSON {success: true, structured_output, data.usage}
+    D -->|Sí| E["Adjuntar Header: Authorization Bearer API_KEY"]
+    D -->|No| F["Omitir Header de Authorization"]
+
+    E --> G["Enviar petición POST HTTPS con timeout"]
+    F --> G
+
+    G --> H{"¿Estado HTTP y Red OK?"}
+
+    H -->|Excepción de Red| I["Captura en Bloque try/except"]
+    I --> I1["Timeout -> Error JSON"]
+    I --> I2["HTTP 429 -> RateLimitExceeded JSON"]
+    I --> I3["JSONDecodeError -> Error JSON"]
+    I --> I4["ConnectionError -> Error JSON"]
+
+    H -->|200 OK| J["Extraer mensaje del asistente"]
+    J --> K{"¿Cumple Esquema JSON?<br>(resumen, categoria, prioridad)"}
+
+    K -->|Faltan claves o valor inválido| L["Generar error: SchemaValidationError"]
+    K -->|Estructura Válida| M["Retornar JSON con structured_output"]
+
+    I1 --> N["Salida Estructurada en Consola / Log"]
+    I2 --> N
+    I3 --> N
+    I4 --> N
+    L --> N
+    M --> N
+    N --> O["Fin de la Ejecución"]
 ```
 
 ---

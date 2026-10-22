@@ -12,6 +12,86 @@ Proyecto configurado con entorno virtual (`.venv`), control de dependencias con 
 
 ---
 
+## 📌 Guía de Evaluación Paso a Paso (100% Offline / Sin API Key)
+
+Si eres evaluador y **no dispones de una API Key de Groq**, el proyecto está completamente preparado para ser verificado en un entorno local y aislado. No se requiere conexión a la API real ni saldo en proveedores de IA para validar el 100% de la rúbrica del Gate 1.
+
+Sigue estos pasos en tu terminal para ejecutar las pruebas:
+
+### Paso 1: Clonar el repositorio y preparar el entorno virtual
+
+```bash
+# 1. Clonar el repositorio e ingresar a la carpeta
+git clone https://github.com/cfpdiaz/practicas_de_git.git
+cd practicas_de_git
+
+# 2. Crear y activar el entorno virtual
+python -m venv .venv
+
+# En Windows (PowerShell):
+.\.venv\Scripts\Activate.ps1
+
+# En Linux/macOS:
+source .venv/bin/activate
+
+# 3. Instalar las dependencias
+pip install -r requirements.txt
+```
+
+### Paso 2: Configurar el archivo de variables de entorno (`.env`)
+
+Copia la plantilla de ejemplo para generar tu archivo `.env` local:
+
+```bash
+# En Windows (PowerShell):
+Copy-Item .env.example .env
+
+# En Linux/macOS o Git Bash:
+cp .env.example .env
+```
+
+> **Nota:** Mantén la variable `API_KEY=tu_groq_api_key_aqui` tal como viene por defecto. Al detectar este valor placeholder, la aplicación activa automáticamente el modo de simulación offline defensivo.
+
+### Paso 3: Probar la aplicación en modo simulación
+
+Ejecuta el script principal para validar la respuesta estructurada:
+
+```bash
+python app.py
+```
+
+**Resultado esperado:** Retorna un objeto JSON con `status_code: 200`, el bloque `structured_output` con las llaves requeridas (`resumen`, `categoria`, `prioridad`) y las métricas de tokens simuladas en `data.usage`.
+
+### Paso 4: Ejecutar la suite de pruebas unitarias (pytest)
+
+Valida el comportamiento del código, los mocks de red y las reglas de negocio ejecutando:
+
+```bash
+pytest -ra
+```
+
+**Resultado esperado:** `6 passed` (0 fallos). Esta suite utiliza `unittest.mock` para probar respuestas HTTP exitosas, manejo de errores y validación de esquema de forma 100% offline.
+
+### Paso 5: Probar la batería de excepciones y seguridad
+
+Verifica cómo el sistema intercepta fallos de red y protege las credenciales ejecutando:
+
+```bash
+python app.py --test-exceptions
+```
+
+**Resultado esperado:** Muestra en pantalla la captura controlada de 4 escenarios: petición estándar exitosa (`200 OK`), `Timeout`, `RateLimitExceeded` (HTTP 429) y `JSONDecodeError`. Los escenarios de HTTP 429 y HTML plano consultan `httpbin.org`, por lo que requieren conexión a internet; el caso `ConnectionError` está cubierto en la suite de [`test_app.py`](test_app.py). La función `is_trusted_url` garantiza que no se exfiltre la clave de autorización hacia hosts no confiables.
+
+### Paso 6: Revisar las evidencias de certificación registradas
+
+Para verificar la consistencia obtenida en ejecuciones reales previas contra la red de Groq, puedes consultar los siguientes archivos del repositorio:
+
+- [`informe_ejecucion.md`](informe_ejecucion.md): registro detallado de trazas HTTP, códigos de respuesta y consumo real de tokens.
+- [`prompts/registro_resultados.json`](prompts/registro_resultados.json): evidencia de la prueba de consistencia (9/9 ejecuciones válidas contra los 3 prompts del banco).
+- [`REPORTE_VERIFICACION_FINAL.md`](REPORTE_VERIFICACION_FINAL.md): informe consolidado de la auditoría técnica.
+
+---
+
 ## 📊 Diagramas de Arquitectura y Flujo (Mermaid)
 
 ### 1. Flujo de Consumo, Seguridad y Excepciones

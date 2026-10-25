@@ -1,28 +1,33 @@
-"""Pruebas unitarias aisladas para ``app.fetch_api_data``.
+"""Pruebas unitarias para ``core.api.fetch_api_data``.
 
-Todas las peticiones HTTP se reemplazan con ``unittest.mock``; la suite nunca
+La suite inyecta una ``AppConfig`` de prueba (sin depender de variables globales)
+y reemplaza ``core.http_client.requests.request`` con ``unittest.mock``; nunca
 consume cuota ni realiza tráfico hacia el proveedor de IA.
 """
 
 import json
 from unittest.mock import Mock, patch
 
-import pytest
 import requests
 
-import app
+from core.api import fetch_api_data
+from core.config import AppConfig
 
 
 TEST_ENDPOINT = "https://example.test/openai/v1/chat/completions"
 
 
-@pytest.fixture(autouse=True)
-def use_test_configuration(monkeypatch):
-    """Evita el modo demo; cada prueba parchea explícitamente la petición HTTP."""
-    monkeypatch.setattr(app, "API_KEY", "test-key-not-real")
-    monkeypatch.setattr(app, "API_BASE_URL", "https://example.test/openai/v1")
-    monkeypatch.setattr(app, "MODEL_NAME", "test-model")
-    monkeypatch.setattr(app, "SSL_VERIFY", True)
+def make_config(**overrides) -> AppConfig:
+    """Construye una configuración de prueba con valores determinísticos."""
+    values = dict(
+        api_base_url="https://example.test/openai/v1",
+        api_key="test-key-not-real",
+        timeout_seconds=10.0,
+        model_name="test-model",
+        ssl_verify=True,
+    )
+    values.update(overrides)
+    return AppConfig(**values)
 
 
 def make_response(*, status_code=200, payload=None):
@@ -59,11 +64,12 @@ def test_fetch_api_data_success_parses_structured_json_and_separates_prompts():
     }
     response = make_response(payload=api_payload)
 
-    with patch("app.requests.request", return_value=response) as request:
-        result = app.fetch_api_data(
+    with patch("core.http_client.requests.request", return_value=response) as request:
+        result = fetch_api_data(
             endpoint=TEST_ENDPOINT,
             prompt="Analiza el incidente de CPU.",
             timeout=3.5,
+            config=make_config(),
         )
 
     assert result["success"] is True
@@ -89,10 +95,14 @@ def test_fetch_api_data_success_parses_structured_json_and_separates_prompts():
 def test_fetch_api_data_timeout_is_returned_as_error():
     """Un timeout de requests se encapsula y no se propaga al llamador."""
     with patch(
-        "app.requests.request",
+        "core.http_client.requests.request",
         side_effect=requests.exceptions.Timeout("read timed out"),
     ) as request:
-        result = app.fetch_api_data(endpoint=TEST_ENDPOINT, timeout=1.25)
+        result = fetch_api_data(
+            endpoint=TEST_ENDPOINT,
+            timeout=1.25,
+            config=make_config(),
+        )
 
     assert result["success"] is False
     assert result["error_type"] == "Timeout"
@@ -109,8 +119,8 @@ def test_fetch_api_data_rate_limit_includes_retry_after_header():
         "429 Too Many Requests", response=response
     )
 
-    with patch("app.requests.request", return_value=response) as request:
-        result = app.fetch_api_data(endpoint=TEST_ENDPOINT)
+    with patch("core.http_client.requests.request", return_value=response) as request:
+        result = fetch_api_data(endpoint=TEST_ENDPOINT, config=make_config())
 
     assert result["success"] is False
     assert result["error_type"] == "RateLimitExceeded"
@@ -126,8 +136,8 @@ def test_fetch_api_data_invalid_json_returns_json_decode_error():
         "Expecting value", "<html>not-json</html>", 0
     )
 
-    with patch("app.requests.request", return_value=response) as request:
-        result = app.fetch_api_data(endpoint=TEST_ENDPOINT)
+    with patch("core.http_client.requests.request", return_value=response) as request:
+        result = fetch_api_data(endpoint=TEST_ENDPOINT, config=make_config())
 
     assert result["success"] is False
     assert result["error_type"] == "JSONDecodeError"
@@ -139,10 +149,10 @@ def test_fetch_api_data_invalid_json_returns_json_decode_error():
 def test_fetch_api_data_connection_error_is_returned():
     """Una falla DNS/red se captura como ConnectionError."""
     with patch(
-        "app.requests.request",
+        "core.http_client.requests.request",
         side_effect=requests.exceptions.ConnectionError("DNS failure"),
     ) as request:
-        result = app.fetch_api_data(endpoint=TEST_ENDPOINT)
+        result = fetch_api_data(endpoint=TEST_ENDPOINT, config=make_config())
 
     assert result["success"] is False
     assert result["error_type"] == "ConnectionError"
@@ -164,8 +174,8 @@ def test_valid_json_without_required_keys_is_rejected():
     }
     response = make_response(payload=incomplete_payload)
 
-    with patch("app.requests.request", return_value=response):
-        result = app.fetch_api_data(endpoint=TEST_ENDPOINT)
+    with patch("core.http_client.requests.request", return_value=response):
+        result = fetch_api_data(endpoint=TEST_ENDPOINT, config=make_config())
 
     # Esta aserción documenta el comportamiento esperado del contrato.
     assert result["success"] is False

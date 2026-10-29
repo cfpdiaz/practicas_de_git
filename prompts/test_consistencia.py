@@ -6,6 +6,8 @@ Ejecuta iteraciones consecutivas por cada prompt estructurado definido en
 Valida que cada respuesta sea un JSON válido y contenga las claves esperadas.
 Calcula la tasa de éxito y guarda automáticamente la evidencia en
 `prompts/registro_resultados.json`.
+
+Ejecucion: ``python -m prompts.test_consistencia``.
 """
 
 from datetime import datetime, timezone

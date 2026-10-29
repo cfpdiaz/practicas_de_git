@@ -115,3 +115,7 @@ Resultado: **6 passed, 0 failed, 0 xfailed**.
 ## Conclusión
 
 La configuración quedó actualizada para que `python app.py` funcione sin overrides. La autenticación, el consumo HTTP 200, `structured_output`, el uso de tokens, la consistencia 9/9, las excepciones y la suite de 6 pruebas quedaron verificados directamente contra Groq. La credencial debe rotarse posteriormente porque fue compartida en el chat.
+
+---
+
+> **Nota:** documento registrado durante la validación del Gate 1 e integración en vivo con Groq.

@@ -204,5 +204,6 @@
         }
       ]
     }
-  ]
+  ],
+  "nota": "Evidencia de la prueba de consistencia: 9/9 ejecuciones validas contra los 3 prompts del banco."
 }

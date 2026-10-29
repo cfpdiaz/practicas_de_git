@@ -7,6 +7,8 @@ Contiene combinaciones estructuradas con:
 - system_instruction
 - ejemplo_entrada
 - claves_esperadas
+
+Es la fuente de verdad del catalogo de tareas usado por la CLI (core/tasks.py).
 """
 
 BANCO_DE_PROMPTS = [

@@ -94,3 +94,7 @@ Resultado: **6 passed, 0 failed, 0 xfailed**.
 ## Conclusión
 
 La ejecución estándar, la consistencia de prompts y la batería de excepciones se certificaron directamente contra Groq sin overrides. Todas las pruebas unitarias pasan. La credencial debe rotarse posteriormente porque fue compartida en el chat.
+
+---
+
+> **Nota:** documento registrado durante la validación del Gate 1 e integración en vivo con Groq.

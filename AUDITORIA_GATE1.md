@@ -48,3 +48,7 @@ Antes del commit se verificó:
 ## Conclusión
 
 El conjunto de archivos está listo para commit y push, excluyendo `.env`, `.venv`, cachés y bytecode. La credencial no debe versionarse y debe revocarse/rotarse posteriormente por haber sido compartida en el chat.
+
+---
+
+> **Nota:** documento registrado durante la validación del Gate 1 e integración en vivo con Groq.

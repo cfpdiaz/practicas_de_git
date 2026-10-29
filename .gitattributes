@@ -25,3 +25,5 @@
 *.ico binary
 *.pdf binary
 *.zip binary
+
+# Nota: normalizacion de saltos de linea configurada para el repositorio.

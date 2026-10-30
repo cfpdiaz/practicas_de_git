@@ -8,7 +8,20 @@
 
 # Proyecto: Consumo de API de IA Generativa con Salida JSON Estructurada en Entorno Virtual Python
 
-Proyecto configurado con entorno virtual (`.venv`), control de dependencias con `requirements.txt`, gestión de variables de entorno mediante `python-dotenv`, y consumo robusto de APIs de IA Generativa (como Groq u OpenRouter con el modelo `llama-3.3-70b-versatile`) a través de `requests` con salida forzada y estructurada en JSON (`response_format: {"type": "json_object"}`) y gestión integral de excepciones.
+Proyecto configurado con entorno virtual (`.venv`), control de dependencias con `requirements.txt`, gestión de variables de entorno mediante `python-dotenv`, y consumo robusto de APIs de IA Generativa (como Groq u OpenRouter con el modelo `openai/gpt-oss-120b`) a través de `requests` con salida forzada y estructurada en JSON (`response_format: {"type": "json_object"}`) y gestión integral de excepciones.
+
+---
+
+## 🧠 Decisión de Modelo
+
+El modelo activo es **`openai/gpt-oss-120b`** servido por Groq. La elección se justifica por:
+
+1. **Compatibilidad OpenAI**: el endpoint `/chat/completions` permite usar `requests` sin SDK propietario y cambiar de proveedor modificando solo `API_BASE_URL`.
+2. **Salida JSON estructurada**: soporta `response_format: {"type": "json_object"}`, requisito del contrato del proyecto.
+3. **Contexto suficiente** (128k tokens) para los prompts del banco sin truncar las entradas.
+4. **Velocidad y estabilidad** del proveedor para las 9 ejecuciones de consistencia.
+
+El modelo se define en `.env` (`AI_MODEL`) y puede cambiarse sin tocar el código.
 
 ---
 
@@ -70,7 +83,7 @@ Valida el comportamiento del código, los mocks de red y las reglas de negocio e
 pytest -ra
 ```
 
-**Resultado esperado:** `6 passed` (0 fallos). Esta suite utiliza `unittest.mock` para probar respuestas HTTP exitosas, manejo de errores y validación de esquema de forma 100% offline.
+**Resultado esperado:** `58 passed` (0 fallos). Esta suite utiliza `unittest.mock` para probar respuestas HTTP exitosas, manejo de errores, validación de esquema y las funciones `armar_peticion` / `enviar_peticion` / `extraer_texto` de forma 100% offline.
 
 ### Paso 5: Probar la batería de excepciones y seguridad
 
@@ -120,7 +133,7 @@ flowchart TD
     end
 
     subgraph External ["Proveedor Externo"]
-        GROQ["Groq API: llama-3.3-70b-versatile"]
+        GROQ["Groq API: openai/gpt-oss-120b"]
     end
 
     subgraph Output ["Salida y Evidencia"]
@@ -283,7 +296,7 @@ Versión de Python: 3.12.x ...
 ```
 
 #### B. Procesamiento de Texto con Modelo de IA (`app.py`)
-Ejecuta la consulta enviando el prompt de usuario o seleccionando una tarea predefinida al modelo de IA generativa (`llama-3.3-70b-versatile`):
+Ejecuta la consulta enviando el prompt de usuario o seleccionando una tarea predefinida al modelo de IA generativa (`openai/gpt-oss-120b`):
 ```powershell
 python app.py --task incidente_tecnico
 ```
@@ -303,7 +316,7 @@ python app.py
     "id": "chatcmpl-7d2d3a1f9e2b4c8a91b2c3d4e5f6a7b8",
     "object": "chat.completion",
     "created": 1729573200,
-    "model": "llama-3.3-70b-versatile",
+    "model": "openai/gpt-oss-120b",
     "choices": [
       {
         "index": 0,
@@ -350,6 +363,32 @@ Cuando termines de trabajar en el proyecto:
 ```powershell
 deactivate
 ```
+
+---
+
+## 🧩 Funciones de Consumo de API (`core/api.py`)
+
+El módulo `core/api.py` expone las tres funciones del flujo de consumo, separadas para poder probarlas y reutilizarlas:
+
+| Función | Responsabilidad |
+| :--- | :--- |
+| `armar_peticion(...)` | Construye la URL, las cabeceras (con `Authorization` solo hacia hosts confiables) y el body JSON con los roles `system` y `user` separados. Devuelve un objeto `Peticion` accesible por atributo, clave o tupla. |
+| `enviar_peticion(...)` | Envía la petición con `requests` (o devuelve una `RespuestaSimulada` si la API Key es el placeholder offline). |
+| `extraer_texto(...)` | Extrae el texto generado desde la respuesta (`choices[0].message.content`), un dict o el resultado de `fetch_api_data`. |
+
+Ejemplo de uso:
+
+```python
+from core.api import armar_peticion, enviar_peticion, extraer_texto
+
+peticion = armar_peticion(prompt="El servidor está al 98% de CPU. Clasifica el incidente.")
+respuesta = enviar_peticion(peticion)
+texto = extraer_texto(respuesta)
+
+print(texto)  # {"resumen": "...", "categoria": "...", "prioridad": "alta"}
+```
+
+`fetch_api_data` sigue disponible como fachada de alto nivel que valida el contrato y encapsula excepciones.
 
 ---
 

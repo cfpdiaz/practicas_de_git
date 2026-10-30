@@ -37,9 +37,11 @@ def make_config(**overrides) -> AppConfig:
     return AppConfig(**values)
 
 
-def make_response_mock(status_code=200):
+def make_response_mock(status_code=200, payload=None):
     response = Mock()
     response.status_code = status_code
+    if payload is not None:
+        response.json.return_value = payload
     return response
 
 
@@ -423,3 +425,169 @@ def test_main_task_dispatches_fetch_api_data(monkeypatch):
     assert captured["endpoint"] == "chat/completions"
     assert captured["required_keys"] == {"resumen", "sentimiento", "urgencia"}
     assert "3 días" in captured["prompt"]
+
+
+# --------------------------------------------------------------------------- #
+# Pruebas: armar_peticion, enviar_peticion, extraer_texto
+# --------------------------------------------------------------------------- #
+
+class TestFuncionesApi:
+    """Valida armar_peticion, enviar_peticion y extraer_texto de punta a punta."""
+
+    def test_armar_peticion_estructura_y_desempaquetado(self):
+        from core.api import armar_peticion
+
+        cfg = make_config(api_key="clave-prueba", model_name="mi-modelo-ia")
+        peticion = armar_peticion(
+            prompt="Consulta técnica",
+            system_instruction="Eres un bot útil",
+            config=cfg,
+        )
+
+        # Acceso por atributos
+        assert peticion.url == "https://example.test/openai/v1/chat/completions"
+        assert peticion.headers["Authorization"] == "Bearer clave-prueba"
+        assert peticion.payload["model"] == "mi-modelo-ia"
+        assert peticion.payload["response_format"] == {"type": "json_object"}
+        assert peticion.payload["messages"][0] == {"role": "system", "content": "Eres un bot útil"}
+        assert peticion.payload["messages"][1] == {"role": "user", "content": "Consulta técnica"}
+
+        # Acceso por clave y desempaquetado tupla
+        assert peticion["url"] == peticion.url
+        assert peticion["headers"] == peticion.headers
+        assert peticion["payload"] == peticion.payload
+        u, h, p = peticion
+        assert u == peticion.url
+        assert h == peticion.headers
+        assert p == peticion.payload
+
+    def test_enviar_peticion_en_simulacion_devuelve_simulated_response(self):
+        from core.api import armar_peticion, enviar_peticion
+
+        cfg = make_config(api_key="tu_groq_api_key_aqui")
+        peticion = armar_peticion(prompt="Simulación", config=cfg)
+        resp = enviar_peticion(peticion, config=cfg)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "choices" in data
+        assert len(data["choices"]) > 0
+
+    def test_enviar_peticion_con_mock_de_red(self):
+        from core.api import armar_peticion, enviar_peticion
+
+        mock_resp = make_response_mock(
+            200,
+            payload={
+                "choices": [{"message": {"role": "assistant", "content": '{"ok": true}'}}]
+            },
+        )
+        cfg = make_config(api_key="clave-real-para-mock")
+        peticion = armar_peticion(prompt="Hola mock", config=cfg)
+
+        with patch("core.api.requests.request", return_value=mock_resp) as mock_req:
+            resp = enviar_peticion(peticion, config=cfg)
+            assert resp.status_code == 200
+            assert mock_req.call_count == 1
+
+    def test_extraer_texto_desde_response_y_dict(self):
+        from core.api import extraer_texto
+
+        # Desde objeto Response mock
+        mock_resp = make_response_mock(
+            200,
+            payload={
+                "choices": [{"message": {"role": "assistant", "content": "Texto extraído exitosamente"}}]
+            },
+        )
+        assert extraer_texto(mock_resp) == "Texto extraído exitosamente"
+
+        # Desde diccionario puro
+        data_dict = {
+            "choices": [{"message": {"role": "assistant", "content": "Desde diccionario"}}]
+        }
+        assert extraer_texto(data_dict) == "Desde diccionario"
+
+    def test_extraer_texto_desde_simulated_response_y_errores(self):
+        from core.api import SimulatedResponse, extraer_texto
+
+        sim = SimulatedResponse(
+            data={"choices": [{"message": {"content": "Respuesta simulada"}}]}
+        )
+        assert extraer_texto(sim) == "Respuesta simulada"
+
+        with pytest.raises(TypeError):
+            extraer_texto(12345)
+
+        with pytest.raises(ValueError):
+            extraer_texto({"vacio": True})
+
+    def test_flujo_punta_a_punta(self):
+        from core.api import armar_peticion, enviar_peticion, extraer_texto
+
+        cfg = make_config(api_key="tu_groq_api_key_aqui")
+        req = armar_peticion(prompt="Verifica flujo punta a punta", config=cfg)
+        resp = enviar_peticion(req, config=cfg)
+        texto = extraer_texto(resp)
+
+        assert isinstance(texto, str)
+        assert len(texto) > 0
+        parsed = json.loads(texto)
+        assert isinstance(parsed, dict)
+
+    def test_peticion_and_simulated_response_helpers(self):
+        from core.api import Peticion, SimulatedResponse
+
+        p = Peticion("https://example.test", {"H": "1"}, {"k": "v"})
+        assert p.json == {"k": "v"}
+        assert p.get("url") == "https://example.test"
+        assert p.get("inexistente", 99) == 99
+        assert p.as_dict()["url"] == "https://example.test"
+        with pytest.raises(KeyError):
+            _ = p["inexistente"]
+
+        sim = SimulatedResponse({"clave": "valor"}, status_code=200)
+        sim.raise_for_status()
+        assert "SimulatedResponse [200]" in repr(sim)
+
+    def test_enviar_peticion_input_variants(self):
+        from core.api import enviar_peticion
+
+        cfg = make_config(api_key="tu_groq_api_key_aqui")
+
+        # Entrada como dict
+        resp_dict = enviar_peticion(
+            {"url": "https://api.groq.com/openai/v1/chat/completions", "payload": {}},
+            config=cfg,
+        )
+        assert resp_dict.status_code == 200
+
+        # Entrada como URL string
+        resp_str = enviar_peticion("https://api.groq.com/openai/v1/chat/completions", config=cfg)
+        assert resp_str.status_code == 200
+
+        # Entrada sin argumentos (usa defaults)
+        resp_default = enviar_peticion(config=cfg)
+        assert resp_default.status_code == 200
+
+    def test_extraer_texto_variants(self):
+        from core.api import extraer_texto
+
+        # String con JSON válido
+        assert extraer_texto('{"choices": [{"message": {"content": "desde json str"}}]}') == "desde json str"
+
+        # String plano
+        assert extraer_texto("texto plano de prueba") == "texto plano de prueba"
+
+        # Dict con text
+        assert extraer_texto({"text": "contenido directo"}) == "contenido directo"
+
+        # Dict con structured_output
+        assert extraer_texto({"structured_output": {"resultado": 1}}) == '{"resultado": 1}'
+
+        # Response con json corrupto
+        mock_bad = Mock()
+        mock_bad.json.side_effect = json.JSONDecodeError("err", "doc", 0)
+        with pytest.raises(ValueError):
+            extraer_texto(mock_bad)
+

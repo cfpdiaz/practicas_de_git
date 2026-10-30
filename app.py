@@ -1,14 +1,22 @@
 """
-app.py - Punto de entrada compatible hacia atrás.
+app.py - Punto de entrada compatible hacia atrás y funciones del curso.
 
 La lógica vive en el paquete `core` (arquitectura modular). Este módulo
 mantiene la interfaz pública original (`fetch_api_data`, `is_trusted_url`,
-`run_tests`, `main`) y las variables globales derivadas de la configuración
-para no romper a los consumidores existentes.
+`run_tests`, `main`), las funciones de la rúbrica del curso (`armar_peticion`,
+`enviar_peticion`, `extraer_texto`) y las variables globales derivadas de la
+configuración para no romper a los consumidores existentes.
 """
 
 from core.config import config, AppConfig, load_config, is_trusted_url
-from core.api import fetch_api_data
+from core.api import (
+    fetch_api_data,
+    armar_peticion,
+    enviar_peticion,
+    extraer_texto,
+    Peticion,
+    SimulatedResponse,
+)
 from core.schemas import ALLOWED_PRIORITIES, REQUIRED_KEYS
 from core.tasks import build_task_definitions
 from core.cli import run_tests, main
@@ -27,6 +35,11 @@ __all__ = [
     "config",
     "is_trusted_url",
     "fetch_api_data",
+    "armar_peticion",
+    "enviar_peticion",
+    "extraer_texto",
+    "Peticion",
+    "SimulatedResponse",
     "run_tests",
     "main",
     "build_task_definitions",

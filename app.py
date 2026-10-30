@@ -15,7 +15,7 @@ from core.api import (
     enviar_peticion,
     extraer_texto,
     Peticion,
-    SimulatedResponse,
+    RespuestaSimulada,
 )
 from core.schemas import ALLOWED_PRIORITIES, REQUIRED_KEYS
 from core.tasks import build_task_definitions
@@ -39,7 +39,7 @@ __all__ = [
     "enviar_peticion",
     "extraer_texto",
     "Peticion",
-    "SimulatedResponse",
+    "RespuestaSimulada",
     "run_tests",
     "main",
     "build_task_definitions",

@@ -17,7 +17,7 @@ from core.simulation import build_simulated_response, is_simulation_mode
 from core.http_client import HttpClient
 from core.api import (
     Peticion,
-    SimulatedResponse,
+    RespuestaSimulada,
     armar_peticion,
     enviar_peticion,
     extraer_texto,
@@ -38,7 +38,7 @@ __all__ = [
     "is_simulation_mode",
     "HttpClient",
     "Peticion",
-    "SimulatedResponse",
+    "RespuestaSimulada",
     "armar_peticion",
     "enviar_peticion",
     "extraer_texto",

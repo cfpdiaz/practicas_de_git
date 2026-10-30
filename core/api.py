@@ -76,7 +76,7 @@ class Peticion(tuple):
         }
 
 
-class SimulatedResponse:
+class RespuestaSimulada:
     """Objeto de respuesta compatible con requests.Response para modo offline."""
 
     def __init__(self, data: Dict[str, Any], status_code: int = 200, url: str = ""):
@@ -93,7 +93,7 @@ class SimulatedResponse:
         pass
 
     def __repr__(self) -> str:
-        return f"<SimulatedResponse [{self.status_code}]>"
+        return f"<RespuestaSimulada [{self.status_code}]>"
 
 
 def armar_peticion(
@@ -101,7 +101,7 @@ def armar_peticion(
     system_instruction: Optional[str] = None,
     model: Optional[str] = None,
     endpoint: str = "chat/completions",
-    response_format_json: bool = True,
+    forzar_json: bool = True,
     config: Optional[AppConfig] = None,
 ) -> Peticion:
     """
@@ -115,7 +115,7 @@ def armar_peticion(
         system_instruction: Instrucción de sistema (o DEFAULT_SYSTEM_INSTRUCTION).
         model: Nombre del modelo a utilizar.
         endpoint: Endpoint relativo o absoluto.
-        response_format_json: Si fuerza salida JSON ({"type": "json_object"}).
+        forzar_json: Si fuerza salida JSON ({"type": "json_object"}).
         config: Configuración inyectable (por defecto usa la global).
 
     Returns:
@@ -144,7 +144,7 @@ def armar_peticion(
             {"role": "user", "content": effective_prompt},
         ],
     }
-    if response_format_json:
+    if forzar_json:
         payload["response_format"] = {"type": "json_object"}
 
     return Peticion(url=url, headers=headers, payload=payload)
@@ -164,7 +164,7 @@ def enviar_peticion(
 
     Acepta un objeto Peticion/dict, o argumentos posicionales (url, headers, payload).
     En modo simulación (clave por defecto en entorno de prueba sin saldo), retorna
-    un SimulatedResponse sin realizar peticiones de red reales.
+    una RespuestaSimulada sin realizar peticiones de red reales.
 
     Args:
         peticion_or_url: Objeto Peticion, dict o URL string.
@@ -176,7 +176,7 @@ def enviar_peticion(
         config: Configuración inyectable.
 
     Returns:
-        Objeto Response de requests (o SimulatedResponse en modo offline).
+        Objeto Response de requests (o RespuestaSimulada en modo offline).
     """
     cfg = config or default_config
 
@@ -217,7 +217,7 @@ def enviar_peticion(
             user_message=user_message,
             payload=req_payload,
         )
-        return SimulatedResponse(data=sim_result["data"], status_code=200, url=url)
+        return RespuestaSimulada(data=sim_result["data"], status_code=200, url=url)
 
     return requests.request(
         method=method,
@@ -233,7 +233,7 @@ def extraer_texto(respuesta: Any) -> str:
     """
     Extrae el contenido de texto generado desde la respuesta de la API.
 
-    Acepta un objeto Response de requests, un SimulatedResponse o un diccionario
+    Acepta un objeto Response de requests, una RespuestaSimulada o un diccionario
     con la estructura de OpenAI/Groq (o la devuelta por fetch_api_data).
 
     Args:

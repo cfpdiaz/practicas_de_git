@@ -509,9 +509,9 @@ class TestFuncionesApi:
         assert extraer_texto(data_dict) == "Desde diccionario"
 
     def test_extraer_texto_desde_simulated_response_y_errores(self):
-        from core.api import SimulatedResponse, extraer_texto
+        from core.api import RespuestaSimulada, extraer_texto
 
-        sim = SimulatedResponse(
+        sim = RespuestaSimulada(
             data={"choices": [{"message": {"content": "Respuesta simulada"}}]}
         )
         assert extraer_texto(sim) == "Respuesta simulada"
@@ -536,7 +536,7 @@ class TestFuncionesApi:
         assert isinstance(parsed, dict)
 
     def test_peticion_and_simulated_response_helpers(self):
-        from core.api import Peticion, SimulatedResponse
+        from core.api import Peticion, RespuestaSimulada
 
         p = Peticion("https://example.test", {"H": "1"}, {"k": "v"})
         assert p.json == {"k": "v"}
@@ -546,9 +546,9 @@ class TestFuncionesApi:
         with pytest.raises(KeyError):
             _ = p["inexistente"]
 
-        sim = SimulatedResponse({"clave": "valor"}, status_code=200)
+        sim = RespuestaSimulada({"clave": "valor"}, status_code=200)
         sim.raise_for_status()
-        assert "SimulatedResponse [200]" in repr(sim)
+        assert "RespuestaSimulada [200]" in repr(sim)
 
     def test_enviar_peticion_input_variants(self):
         from core.api import enviar_peticion

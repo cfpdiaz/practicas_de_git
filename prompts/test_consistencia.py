@@ -2,7 +2,7 @@
 prompts/test_consistencia.py - Prueba de Consistencia para el Gate 1.
 
 Ejecuta iteraciones consecutivas por cada prompt estructurado definido en
-`prompts/banco.py` contra la API utilizando `fetch_api_data` de `app.py`.
+`prompts/banco.py` contra la API utilizando `obtener_datos_api` de `app.py`.
 Valida que cada respuesta sea un JSON válido y contenga las claves esperadas.
 Calcula la tasa de éxito y guarda automáticamente la evidencia en
 `prompts/registro_resultados.json`.
@@ -17,15 +17,15 @@ import sys
 from typing import Any, Dict, List
 
 # Asegurar que el directorio raíz del proyecto esté en sys.path para importaciones
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
+if str(RAIZ_PROYECTO) not in sys.path:
+    sys.path.insert(0, str(RAIZ_PROYECTO))
 
-from app import fetch_api_data
+from app import obtener_datos_api
 from prompts.banco import BANCO_DE_PROMPTS
 
 ITERACIONES_POR_PROMPT = 3
-REGISTRO_RESULTADOS_PATH = PROJECT_ROOT / "prompts" / "registro_resultados.json"
+RUTA_REGISTRO_RESULTADOS = RAIZ_PROYECTO / "prompts" / "registro_resultados.json"
 
 
 def validar_respuesta_json(
@@ -121,7 +121,7 @@ def ejecutar_pruebas_consistencia() -> int:
     for idx, prompt_info in enumerate(BANCO_DE_PROMPTS, start=1):
         nombre = prompt_info["nombre"]
         descripcion = prompt_info.get("descripcion", "")
-        system_instruction = prompt_info["system_instruction"]
+        instruccion_sistema = prompt_info["instruccion_sistema"]
         ejemplo_entrada = prompt_info["ejemplo_entrada"]
         claves_esperadas = prompt_info["claves_esperadas"]
 
@@ -135,11 +135,11 @@ def ejecutar_pruebas_consistencia() -> int:
 
         for i in range(1, ITERACIONES_POR_PROMPT + 1):
             total_ejecuciones += 1
-            # Realizar llamada a través de fetch_api_data de app.py
-            respuesta = fetch_api_data(
+            # Realizar llamada a través de obtener_datos_api de app.py
+            respuesta = obtener_datos_api(
                 prompt=ejemplo_entrada,
-                system_instruction=system_instruction,
-                required_keys=claves_esperadas,
+                instruccion_sistema=instruccion_sistema,
+                claves_requeridas=claves_esperadas,
             )
 
             validacion = validar_respuesta_json(respuesta, claves_esperadas)
@@ -214,8 +214,8 @@ def ejecutar_pruebas_consistencia() -> int:
     }
 
     # Guardar automáticamente en prompts/registro_resultados.json
-    REGISTRO_RESULTADOS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(REGISTRO_RESULTADOS_PATH, "w", encoding="utf-8") as f:
+    RUTA_REGISTRO_RESULTADOS.parent.mkdir(parents=True, exist_ok=True)
+    with open(RUTA_REGISTRO_RESULTADOS, "w", encoding="utf-8") as f:
         json.dump(registro_final, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 65)
@@ -226,7 +226,7 @@ def ejecutar_pruebas_consistencia() -> int:
     print(f" Ejecuciones fallidas:    {total_fallidas}")
     print(f" Tasa de éxito global:    {tasa_global}")
     print(f" Meta (3/3 por prompt):   {'CUMPLIDA CON ÉXITO' if meta_cumplida else 'NO CUMPLIDA'}")
-    print(f" Registro guardado en:    {REGISTRO_RESULTADOS_PATH}")
+    print(f" Registro guardado en:    {RUTA_REGISTRO_RESULTADOS}")
     print("=" * 65)
 
     return 0 if meta_cumplida else 1

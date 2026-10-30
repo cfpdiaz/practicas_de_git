@@ -11,33 +11,33 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from core.api import fetch_api_data
-from core.config import AppConfig, load_config
-from core.schemas import validate_api_response
+from core.api import obtener_datos_api
+from core.config import ConfiguracionApp, cargar_configuracion
+from core.schemas import validar_respuesta_api
 from core.simulation import (
-    _generate_simulated_structured,
-    build_simulated_response,
-    is_simulation_mode,
+    _generar_estructurado_simulado,
+    construir_respuesta_simulada,
+    es_modo_simulacion,
 )
-from core.tasks import build_task_definitions
+from core.tasks import construir_definiciones_tareas
 
 
-TEST_ENDPOINT = "https://example.test/openai/v1/chat/completions"
+ENDPOINT_PRUEBA = "https://example.test/openai/v1/chat/completions"
 
 
-def make_config(**overrides) -> AppConfig:
+def crear_configuracion(**overrides) -> ConfiguracionApp:
     values = dict(
-        api_base_url="https://example.test/openai/v1",
-        api_key="test-key-not-real",
-        timeout_seconds=10.0,
-        model_name="test-model",
-        ssl_verify=True,
+        url_base_api="https://example.test/openai/v1",
+        clave_api="test-key-not-real",
+        segundos_timeout=10.0,
+        nombre_modelo="test-model",
+        verificar_ssl=True,
     )
     values.update(overrides)
-    return AppConfig(**values)
+    return ConfiguracionApp(**values)
 
 
-def make_response_mock(status_code=200, payload=None):
+def crear_respuesta_mock(status_code=200, payload=None):
     response = Mock()
     response.status_code = status_code
     if payload is not None:
@@ -49,63 +49,63 @@ def make_response_mock(status_code=200, payload=None):
 # Configuración
 # --------------------------------------------------------------------------- #
 
-class TestAppConfig:
-    def test_is_trusted_url_relative_is_true(self):
-        cfg = make_config()
-        assert cfg.is_trusted_url("chat/completions", is_relative=True) is True
+class TestConfiguracionApp:
+    def test_es_url_confiable_relative_is_true(self):
+        cfg = crear_configuracion()
+        assert cfg.es_url_confiable("chat/completions", es_relativa=True) is True
 
-    def test_is_trusted_url_trusted_domain_is_true(self):
-        cfg = make_config(trusted_domains=frozenset({"api.groq.com"}))
-        assert cfg.is_trusted_url("https://api.groq.com/v1/x", is_relative=False) is True
+    def test_es_url_confiable_trusted_domain_is_true(self):
+        cfg = crear_configuracion(dominios_confiables=frozenset({"api.groq.com"}))
+        assert cfg.es_url_confiable("https://api.groq.com/v1/x", es_relativa=False) is True
 
-    def test_is_trusted_url_base_host_match_is_true(self):
-        cfg = make_config(api_base_url="https://example.test/openai/v1")
-        assert cfg.is_trusted_url("https://example.test/other", is_relative=False) is True
+    def test_es_url_confiable_base_host_match_is_true(self):
+        cfg = crear_configuracion(url_base_api="https://example.test/openai/v1")
+        assert cfg.es_url_confiable("https://example.test/other", es_relativa=False) is True
 
-    def test_is_trusted_url_untrusted_host_is_false(self):
-        cfg = make_config()
-        assert cfg.is_trusted_url("https://evil.example/x", is_relative=False) is False
+    def test_es_url_confiable_untrusted_host_is_false(self):
+        cfg = crear_configuracion()
+        assert cfg.es_url_confiable("https://evil.example/x", es_relativa=False) is False
 
-    def test_is_trusted_url_no_hostname_is_false(self):
-        cfg = make_config()
-        assert cfg.is_trusted_url("not-a-valid-url", is_relative=False) is False
+    def test_es_url_confiable_no_hostname_is_false(self):
+        cfg = crear_configuracion()
+        assert cfg.es_url_confiable("not-a-valid-url", es_relativa=False) is False
 
 
-class TestLoadConfig:
+class TestCargarConfiguracion:
     def test_defaults(self, monkeypatch):
         for name in ("API_BASE_URL", "API_KEY", "API_TIMEOUT", "AI_MODEL", "SSL_VERIFY"):
             monkeypatch.delenv(name, raising=False)
-        cfg = load_config()
-        assert cfg.api_base_url == "https://api.groq.com/openai/v1"
-        assert cfg.api_key is None
-        assert cfg.timeout_seconds == 10.0
-        assert cfg.model_name == "llama-3.3-70b-versatile"
-        assert cfg.ssl_verify is True
+        cfg = cargar_configuracion()
+        assert cfg.url_base_api == "https://api.groq.com/openai/v1"
+        assert cfg.clave_api is None
+        assert cfg.segundos_timeout == 10.0
+        assert cfg.nombre_modelo == "llama-3.3-70b-versatile"
+        assert cfg.verificar_ssl is True
 
-    def test_ssl_verify_false(self, monkeypatch):
+    def test_verificar_ssl_false(self, monkeypatch):
         monkeypatch.setenv("SSL_VERIFY", "false")
-        assert load_config().ssl_verify is False
+        assert cargar_configuracion().verificar_ssl is False
 
-    def test_ssl_verify_off_variant(self, monkeypatch):
+    def test_verificar_ssl_off_variant(self, monkeypatch):
         monkeypatch.setenv("SSL_VERIFY", "off")
-        assert load_config().ssl_verify is False
+        assert cargar_configuracion().verificar_ssl is False
 
-    def test_api_key_empty_becomes_none(self, monkeypatch):
+    def test_clave_api_empty_becomes_none(self, monkeypatch):
         monkeypatch.setenv("API_KEY", "")
-        assert load_config().api_key is None
+        assert cargar_configuracion().clave_api is None
 
-    def test_base_url_trailing_slash_is_stripped(self, monkeypatch):
+    def test_url_base_trailing_slash_is_stripped(self, monkeypatch):
         monkeypatch.setenv("API_BASE_URL", "https://example.com/v1/")
-        assert load_config().api_base_url == "https://example.com/v1"
+        assert cargar_configuracion().url_base_api == "https://example.com/v1"
 
 
 # --------------------------------------------------------------------------- #
 # Simulación
 # --------------------------------------------------------------------------- #
 
-class TestGenerateSimulatedStructured:
+class TestGenerarEstructuradoSimulado:
     def test_incidente_template(self):
-        result = _generate_simulated_structured("x", required_keys={"resumen", "categoria", "prioridad"})
+        result = _generar_estructurado_simulado("x", claves_requeridas={"resumen", "categoria", "prioridad"})
         assert result == {
             "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos en producción afectando la latencia de los usuarios.",
             "categoria": "Infraestructura",
@@ -113,58 +113,58 @@ class TestGenerateSimulatedStructured:
         }
 
     def test_sentimiento_template(self):
-        result = _generate_simulated_structured("x", required_keys={"resumen", "sentimiento", "urgencia"})
+        result = _generar_estructurado_simulado("x", claves_requeridas={"resumen", "sentimiento", "urgencia"})
         assert result["sentimiento"] == "negativo"
         assert result["urgencia"] == "alta"
 
     def test_logistica_template(self):
-        result = _generate_simulated_structured(
-            "x", required_keys={"numero_pedido", "destino", "estado_envio"}
+        result = _generar_estructurado_simulado(
+            "x", claves_requeridas={"numero_pedido", "destino", "estado_envio"}
         )
         assert result["numero_pedido"] == "ORD-98234"
         assert result["estado_envio"] == "en_transito"
 
     def test_arbitrary_keys_produce_placeholder_values(self):
-        result = _generate_simulated_structured("x", required_keys={"foo", "bar"})
+        result = _generar_estructurado_simulado("x", claves_requeridas={"foo", "bar"})
         assert result == {"foo": "valor_simulado_foo", "bar": "valor_simulado_bar"}
 
     def test_keyword_reclamo_detects_sentimiento(self):
-        result = _generate_simulated_structured("El cliente eleva un reclamo grave")
+        result = _generar_estructurado_simulado("El cliente eleva un reclamo grave")
         assert result["sentimiento"] == "negativo"
 
     def test_keyword_pedido_detects_logistica(self):
-        result = _generate_simulated_structured("El pedido está en camino")
+        result = _generar_estructurado_simulado("El pedido está en camino")
         assert result["estado_envio"] == "en_transito"
 
     def test_default_is_incidente(self):
-        result = _generate_simulated_structured("")
+        result = _generar_estructurado_simulado("")
         assert set(result) == {"resumen", "categoria", "prioridad"}
 
 
-class TestIsSimulationMode:
+class TestEsModoSimulacion:
     def test_placeholder_key_activates(self):
-        assert is_simulation_mode(make_config(api_key="tu_groq_api_key_aqui"), "https://api.groq.com/v1", 10.0) is True
+        assert es_modo_simulacion(crear_configuracion(clave_api="tu_groq_clave_api_aqui"), "https://api.groq.com/v1", 10.0) is True
 
     def test_none_key_activates(self):
-        assert is_simulation_mode(make_config(api_key=None), "https://api.groq.com/v1", 10.0) is True
+        assert es_modo_simulacion(crear_configuracion(clave_api=None), "https://api.groq.com/v1", 10.0) is True
 
     def test_real_key_deactivates(self):
-        assert is_simulation_mode(make_config(api_key="gsk_real_key"), "https://api.groq.com/v1", 10.0) is False
+        assert es_modo_simulacion(crear_configuracion(clave_api="gsk_real_key"), "https://api.groq.com/v1", 10.0) is False
 
     def test_httpbin_deactivates(self):
-        assert is_simulation_mode(make_config(api_key=None), "https://httpbin.org/status/429", 10.0) is False
+        assert es_modo_simulacion(crear_configuracion(clave_api=None), "https://httpbin.org/status/429", 10.0) is False
 
     def test_forced_short_timeout_deactivates(self):
-        assert is_simulation_mode(make_config(api_key=None), "https://api.groq.com/v1", 0.001) is False
+        assert es_modo_simulacion(crear_configuracion(clave_api=None), "https://api.groq.com/v1", 0.001) is False
 
 
-class TestBuildSimulatedResponse:
+class TestConstruirRespuestaSimulada:
     def test_builds_full_response(self):
-        result = build_simulated_response(
-            config=make_config(),
+        result = construir_respuesta_simulada(
+            config=crear_configuracion(),
             url="https://example.test/chat/completions",
-            user_message="hola",
-            required_keys={"resumen", "categoria", "prioridad"},
+            mensaje_usuario="hola",
+            claves_requeridas={"resumen", "categoria", "prioridad"},
         )
         assert result["success"] is True
         assert result["status_code"] == 200
@@ -177,42 +177,42 @@ class TestBuildSimulatedResponse:
 # Validación de esquema
 # --------------------------------------------------------------------------- #
 
-class TestValidateApiResponse:
+class TestValidarRespuestaApi:
     def test_non_dict_data_is_rejected(self):
-        result = validate_api_response(
+        result = validar_respuesta_api(
             data=["no", "es", "dict"],
-            response=make_response_mock(200),
+            response=crear_respuesta_mock(200),
             url="u",
             timestamp="t",
-            required_keys=None,
-            custom_payload_provided=False,
-            custom_system_provided=False,
+            claves_requeridas=None,
+            payload_personalizado=False,
+            sistema_personalizado=False,
         )
         assert result["success"] is False
         assert result["error_type"] == "SchemaValidationError"
 
     def test_empty_choices_is_rejected(self):
-        result = validate_api_response(
+        result = validar_respuesta_api(
             data={"choices": []},
-            response=make_response_mock(200),
+            response=crear_respuesta_mock(200),
             url="u",
             timestamp="t",
-            required_keys=None,
-            custom_payload_provided=False,
-            custom_system_provided=False,
+            claves_requeridas=None,
+            payload_personalizado=False,
+            sistema_personalizado=False,
         )
         assert result["success"] is False
 
     def test_content_json_list_is_rejected(self):
         data = {"choices": [{"message": {"content": json.dumps(["a", "b"])}}]}
-        result = validate_api_response(
+        result = validar_respuesta_api(
             data=data,
-            response=make_response_mock(200),
+            response=crear_respuesta_mock(200),
             url="u",
             timestamp="t",
-            required_keys=None,
-            custom_payload_provided=False,
-            custom_system_provided=False,
+            claves_requeridas=None,
+            payload_personalizado=False,
+            sistema_personalizado=False,
         )
         assert result["success"] is False
         assert result["error_type"] == "SchemaValidationError"
@@ -221,38 +221,38 @@ class TestValidateApiResponse:
         data = {"choices": [{"message": {"content": json.dumps(
             {"resumen": "x", "categoria": "y", "prioridad": "urgentisima"}
         )}}]}
-        result = validate_api_response(
+        result = validar_respuesta_api(
             data=data,
-            response=make_response_mock(200),
+            response=crear_respuesta_mock(200),
             url="u",
             timestamp="t",
-            required_keys=None,
-            custom_payload_provided=False,
-            custom_system_provided=False,
+            claves_requeridas=None,
+            payload_personalizado=False,
+            sistema_personalizado=False,
         )
         assert result["success"] is False
         assert "prioridad" in result["message"]
 
-    def test_custom_payload_skips_required_keys_validation(self):
+    def test_custom_payload_skips_claves_requeridas_validation(self):
         # Con payload personalizado + instrucción personalizada no se exige el contrato por defecto.
         data = {"choices": [{"message": {"content": json.dumps({"lo": "que sea"})}}]}
-        result = validate_api_response(
+        result = validar_respuesta_api(
             data=data,
-            response=make_response_mock(200),
+            response=crear_respuesta_mock(200),
             url="u",
             timestamp="t",
-            required_keys=None,
-            custom_payload_provided=True,
-            custom_system_provided=True,
+            claves_requeridas=None,
+            payload_personalizado=True,
+            sistema_personalizado=True,
         )
         assert result["success"] is True
 
 
 # --------------------------------------------------------------------------- #
-# Ramas de excepción del cliente HTTP (vía fetch_api_data)
+# Ramas de excepción del cliente HTTP (vía obtener_datos_api)
 # --------------------------------------------------------------------------- #
 
-class TestHttpClientErrorBranches:
+class TestClienteHttpRamasError:
     def test_generic_http_error(self):
         response = Mock()
         response.status_code = 500
@@ -261,7 +261,7 @@ class TestHttpClientErrorBranches:
             "500 Server Error", response=response
         )
         with patch("core.http_client.requests.request", return_value=response):
-            result = fetch_api_data(endpoint=TEST_ENDPOINT, config=make_config())
+            result = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=crear_configuracion())
         assert result["error_type"] == "HTTPError"
         assert result["status_code"] == 500
 
@@ -270,15 +270,15 @@ class TestHttpClientErrorBranches:
             "core.http_client.requests.request",
             side_effect=requests.exceptions.RequestException("boom"),
         ):
-            result = fetch_api_data(endpoint=TEST_ENDPOINT, config=make_config())
+            result = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=crear_configuracion())
         assert result["error_type"] == "RequestException"
         assert result["status_code"] is None
 
     def test_simulation_path_does_not_hit_network(self):
         with patch("core.http_client.requests.request") as request:
-            result = fetch_api_data(
-                endpoint=TEST_ENDPOINT,
-                config=make_config(api_key=None),
+            result = obtener_datos_api(
+                endpoint=ENDPOINT_PRUEBA,
+                config=crear_configuracion(clave_api=None),
             )
         request.assert_not_called()
         assert result["success"] is True
@@ -295,7 +295,7 @@ class TestHttpClientErrorBranches:
             )}}]
         }
         with patch("core.http_client.requests.request", return_value=response) as request:
-            fetch_api_data(endpoint="https://evil.example/v1", config=make_config())
+            obtener_datos_api(endpoint="https://evil.example/v1", config=crear_configuracion())
         assert "Authorization" not in request.call_args.kwargs["headers"]
 
 
@@ -303,9 +303,9 @@ class TestHttpClientErrorBranches:
 # Catálogo de tareas
 # --------------------------------------------------------------------------- #
 
-class TestBuildTaskDefinitions:
+class TestConstruirDefinicionesTareas:
     def test_aliases_resolve_correctly(self):
-        defs = build_task_definitions()
+        defs = construir_definiciones_tareas()
         assert set(defs) == {
             "incidente_tecnico",
             "clasificar_incidente",
@@ -314,9 +314,9 @@ class TestBuildTaskDefinitions:
             "logistica",
             "extraccion_entidades_logistica",
         }
-        assert defs["incidente_tecnico"]["required_keys"] == {"resumen", "categoria", "prioridad"}
-        assert defs["soporte"]["required_keys"] == {"resumen", "sentimiento", "urgencia"}
-        assert defs["logistica"]["required_keys"] == {"numero_pedido", "destino", "estado_envio"}
+        assert defs["incidente_tecnico"]["claves_requeridas"] == {"resumen", "categoria", "prioridad"}
+        assert defs["soporte"]["claves_requeridas"] == {"resumen", "sentimiento", "urgencia"}
+        assert defs["logistica"]["claves_requeridas"] == {"numero_pedido", "destino", "estado_envio"}
         assert defs["incidente_tecnico"]["prompt"] == defs["clasificar_incidente"]["prompt"]
         assert defs["soporte"]["prompt"] == defs["analisis_sentimiento_soporte"]["prompt"]
         assert defs["logistica"]["prompt"] == defs["extraccion_entidades_logistica"]["prompt"]
@@ -328,88 +328,88 @@ class TestBuildTaskDefinitions:
 
 def test_schema_first_choice_not_dict_is_rejected():
     data = {"choices": ["no-es-dict"]}
-    result = validate_api_response(data, make_response_mock(200), "u", "t", None, False, False)
+    result = validar_respuesta_api(data, crear_respuesta_mock(200), "u", "t", None, False, False)
     assert result["success"] is False
     assert result["error_type"] == "SchemaValidationError"
 
 
 def test_schema_message_not_dict_is_rejected():
     data = {"choices": [{"message": "no-es-dict"}]}
-    result = validate_api_response(data, make_response_mock(200), "u", "t", None, False, False)
+    result = validar_respuesta_api(data, crear_respuesta_mock(200), "u", "t", None, False, False)
     assert result["success"] is False
     assert result["error_type"] == "SchemaValidationError"
 
 
 def test_schema_empty_content_is_rejected():
     data = {"choices": [{"message": {"content": ""}}]}
-    result = validate_api_response(data, make_response_mock(200), "u", "t", None, False, False)
+    result = validar_respuesta_api(data, crear_respuesta_mock(200), "u", "t", None, False, False)
     assert result["success"] is False
     assert result["error_type"] == "SchemaValidationError"
 
 
 def test_schema_non_json_content_is_rejected():
     data = {"choices": [{"message": {"content": "esto no es un json válido"}}]}
-    result = validate_api_response(data, make_response_mock(200), "u", "t", None, False, False)
+    result = validar_respuesta_api(data, crear_respuesta_mock(200), "u", "t", None, False, False)
     assert result["success"] is False
     assert result["error_type"] == "SchemaValidationError"
 
 
 def test_simulation_scans_payload_messages_for_keywords():
-    result = _generate_simulated_structured(
+    result = _generar_estructurado_simulado(
         "",
         payload={"messages": [{"role": "user", "content": "quiero elevar un reclamo formal"}]},
     )
     assert result["sentimiento"] == "negativo"
 
 
-def test_module_level_is_trusted_url(monkeypatch):
+def test_module_level_es_url_confiable(monkeypatch):
     import importlib
 
-    # `import core.config as x` devuelve el AppConfig (sombreado en core/__init__),
+    # `import core.config as x` devuelve el ConfiguracionApp (sombreado en core/__init__),
     # por eso se usa importlib para obtener el módulo real.
     config_module = importlib.import_module("core.config")
-    monkeypatch.setattr(config_module, "config", make_config(api_base_url="https://example.test/openai/v1"))
-    assert config_module.is_trusted_url("https://example.test/x", is_relative=False) is True
-    assert config_module.is_trusted_url("https://evil.example/x", is_relative=False) is False
+    monkeypatch.setattr(config_module, "config", crear_configuracion(url_base_api="https://example.test/openai/v1"))
+    assert config_module.es_url_confiable("https://example.test/x", es_relativa=False) is True
+    assert config_module.es_url_confiable("https://evil.example/x", es_relativa=False) is False
 
 
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 
-def test_create_parser_defaults():
-    from core.cli import create_parser
+def test_crear_analizador_defaults():
+    from core.cli import crear_analizador
 
-    args = create_parser().parse_args([])
-    assert args.endpoint == "chat/completions"
-    assert args.prompt is None
-    assert args.task is None
-    assert args.test_exceptions is False
+    argumentos = crear_analizador().parse_args([])
+    assert argumentos.endpoint == "chat/completions"
+    assert argumentos.prompt is None
+    assert argumentos.task is None
+    assert argumentos.test_exceptions is False
 
 
-def test_create_parser_full_args():
-    from core.cli import create_parser
+def test_crear_analizador_full_args():
+    from core.cli import crear_analizador
 
-    args = create_parser().parse_args(
+    argumentos = crear_analizador().parse_args(
         ["--endpoint", "x", "--prompt", "hola", "--task", "soporte", "--test-exceptions"]
     )
-    assert args.endpoint == "x"
-    assert args.prompt == "hola"
-    assert args.task == "soporte"
-    assert args.test_exceptions is True
+    assert argumentos.endpoint == "x"
+    assert argumentos.prompt == "hola"
+    assert argumentos.task == "soporte"
+    assert argumentos.test_exceptions is True
 
 
-def test_main_test_exceptions_dispatches_run_tests(monkeypatch):
+def test_main_test_exceptions_dispatches_ejecutar_pruebas(monkeypatch):
     import core.cli as cli
 
     calls = []
-    monkeypatch.setattr(cli, "run_tests", lambda: calls.append(True))
+    monkeypatch.setattr(cli, "ejecutar_pruebas", lambda: calls.append(True))
     monkeypatch.setattr(sys, "argv", ["app.py", "--test-exceptions"])
     cli.main()
     assert calls == [True]
 
 
-def test_main_task_dispatches_fetch_api_data(monkeypatch):
+def test_main_task_dispatches_obtener_datos_api(monkeypatch):
     import core.cli as cli
 
     captured = {}
@@ -418,12 +418,12 @@ def test_main_task_dispatches_fetch_api_data(monkeypatch):
         captured.update(kwargs)
         return {"success": True}
 
-    monkeypatch.setattr(cli, "fetch_api_data", fake_fetch)
+    monkeypatch.setattr(cli, "obtener_datos_api", fake_fetch)
     monkeypatch.setattr(sys, "argv", ["app.py", "--task", "soporte"])
     cli.main()
 
     assert captured["endpoint"] == "chat/completions"
-    assert captured["required_keys"] == {"resumen", "sentimiento", "urgencia"}
+    assert captured["claves_requeridas"] == {"resumen", "sentimiento", "urgencia"}
     assert "3 días" in captured["prompt"]
 
 
@@ -437,10 +437,10 @@ class TestFuncionesApi:
     def test_armar_peticion_estructura_y_desempaquetado(self):
         from core.api import armar_peticion
 
-        cfg = make_config(api_key="clave-prueba", model_name="mi-modelo-ia")
+        cfg = crear_configuracion(clave_api="clave-prueba", nombre_modelo="mi-modelo-ia")
         peticion = armar_peticion(
             prompt="Consulta técnica",
-            system_instruction="Eres un bot útil",
+            instruccion_sistema="Eres un bot útil",
             config=cfg,
         )
 
@@ -464,7 +464,7 @@ class TestFuncionesApi:
     def test_enviar_peticion_en_simulacion_devuelve_simulated_response(self):
         from core.api import armar_peticion, enviar_peticion
 
-        cfg = make_config(api_key="tu_groq_api_key_aqui")
+        cfg = crear_configuracion(clave_api="tu_groq_clave_api_aqui")
         peticion = armar_peticion(prompt="Simulación", config=cfg)
         resp = enviar_peticion(peticion, config=cfg)
 
@@ -476,13 +476,13 @@ class TestFuncionesApi:
     def test_enviar_peticion_con_mock_de_red(self):
         from core.api import armar_peticion, enviar_peticion
 
-        mock_resp = make_response_mock(
+        mock_resp = crear_respuesta_mock(
             200,
             payload={
                 "choices": [{"message": {"role": "assistant", "content": '{"ok": true}'}}]
             },
         )
-        cfg = make_config(api_key="clave-real-para-mock")
+        cfg = crear_configuracion(clave_api="clave-real-para-mock")
         peticion = armar_peticion(prompt="Hola mock", config=cfg)
 
         with patch("core.api.requests.request", return_value=mock_resp) as mock_req:
@@ -494,7 +494,7 @@ class TestFuncionesApi:
         from core.api import extraer_texto
 
         # Desde objeto Response mock
-        mock_resp = make_response_mock(
+        mock_resp = crear_respuesta_mock(
             200,
             payload={
                 "choices": [{"message": {"role": "assistant", "content": "Texto extraído exitosamente"}}]
@@ -525,7 +525,7 @@ class TestFuncionesApi:
     def test_flujo_punta_a_punta(self):
         from core.api import armar_peticion, enviar_peticion, extraer_texto
 
-        cfg = make_config(api_key="tu_groq_api_key_aqui")
+        cfg = crear_configuracion(clave_api="tu_groq_clave_api_aqui")
         req = armar_peticion(prompt="Verifica flujo punta a punta", config=cfg)
         resp = enviar_peticion(req, config=cfg)
         texto = extraer_texto(resp)
@@ -542,7 +542,7 @@ class TestFuncionesApi:
         assert p.json == {"k": "v"}
         assert p.get("url") == "https://example.test"
         assert p.get("inexistente", 99) == 99
-        assert p.as_dict()["url"] == "https://example.test"
+        assert p.como_diccionario()["url"] == "https://example.test"
         with pytest.raises(KeyError):
             _ = p["inexistente"]
 
@@ -553,7 +553,7 @@ class TestFuncionesApi:
     def test_enviar_peticion_input_variants(self):
         from core.api import enviar_peticion
 
-        cfg = make_config(api_key="tu_groq_api_key_aqui")
+        cfg = crear_configuracion(clave_api="tu_groq_clave_api_aqui")
 
         # Entrada como dict
         resp_dict = enviar_peticion(

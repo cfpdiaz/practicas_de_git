@@ -4,7 +4,7 @@ prompts/banco.py - Definición oficial del Banco de Prompts para Gate 1.
 Contiene combinaciones estructuradas con:
 - nombre
 - descripcion
-- system_instruction
+- instruccion_sistema
 - ejemplo_entrada
 - claves_esperadas
 
@@ -15,7 +15,7 @@ BANCO_DE_PROMPTS = [
     {
         "nombre": "clasificar_incidente",
         "descripcion": "Clasificación y triaje de incidentes de TI",
-        "system_instruction": (
+        "instruccion_sistema": (
             "Eres un asistente de IA especializado en análisis y clasificación de incidentes técnicos. "
             "Debes responder EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura exacta: "
             '{"resumen": "string", "categoria": "string", "prioridad": "alta|media|baja"}. '
@@ -30,7 +30,7 @@ BANCO_DE_PROMPTS = [
     {
         "nombre": "analisis_sentimiento_soporte",
         "descripcion": "Análisis de sentimiento y urgencia en reclamos de clientes",
-        "system_instruction": (
+        "instruccion_sistema": (
             "Eres un analista de soporte al cliente. Analiza el reclamo y responde EXCLUSIVAMENTE "
             "con un objeto JSON válido con la siguiente estructura exacta: "
             '{"resumen": "string", "sentimiento": "positivo|neutral|negativo", "urgencia": "alta|media|baja"}. '
@@ -45,7 +45,7 @@ BANCO_DE_PROMPTS = [
     {
         "nombre": "extraccion_entidades_logistica",
         "descripcion": "Extracción estructurada de datos de pedidos o despachos",
-        "system_instruction": (
+        "instruccion_sistema": (
             "Eres un extractor de datos logísticos. Procesa la solicitud y responde EXCLUSIVAMENTE "
             "con un objeto JSON válido con la siguiente estructura exacta: "
             '{"numero_pedido": "string", "destino": "string", "estado_envio": "pendiente|en_transito|entregado"}. '

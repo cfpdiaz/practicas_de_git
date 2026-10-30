@@ -18,16 +18,16 @@ from requests.exceptions import (
     Timeout,
 )
 
-from core.config import AppConfig
-from core.schemas import validate_api_response
+from core.config import ConfiguracionApp
+from core.schemas import validar_respuesta_api
 
-DEFAULT_USER_MESSAGE = (
+MENSAJE_USUARIO_POR_DEFECTO = (
     "El servidor de base de datos en producción está experimentando una sobrecarga "
     "crítica de CPU (98%) y los clientes reportan tiempos de respuesta muy lentos. "
     "Por favor analiza la situación y clasifica el incidente."
 )
 
-DEFAULT_SYSTEM_INSTRUCTION = (
+INSTRUCCION_SISTEMA_POR_DEFECTO = (
     "Eres un asistente de IA especializado en análisis y clasificación de incidentes técnicos. "
     "Debes responder EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura exacta: "
     '{"resumen": "string", "categoria": "string", "prioridad": "alta|media|baja"}. '
@@ -35,13 +35,13 @@ DEFAULT_SYSTEM_INSTRUCTION = (
 )
 
 
-class HttpClient:
+class ClienteHttp:
     """Cliente HTTP para consumo de API de IA Generativa."""
 
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: ConfiguracionApp):
         self.config = config
 
-    def fetch(
+    def enviar(
         self,
         endpoint: str = "chat/completions",
         method: str = "POST",
@@ -49,45 +49,45 @@ class HttpClient:
         params: Optional[Dict[str, Any]] = None,
         payload: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
-        verify_ssl: Optional[bool] = None,
-        system_instruction: Optional[str] = None,
-        required_keys: Optional[set[str]] = None,
+        verificar_ssl: Optional[bool] = None,
+        instruccion_sistema: Optional[str] = None,
+        claves_requeridas: Optional[set[str]] = None,
     ) -> Dict[str, Any]:
         """
         Realiza una petición HTTP y devuelve una respuesta estructurada.
 
         No gestiona el modo simulación: ese chequeo ocurre antes de instanciar el cliente.
         """
-        effective_timeout = timeout if timeout is not None else self.config.timeout_seconds
-        effective_verify = verify_ssl if verify_ssl is not None else self.config.ssl_verify
-        is_relative = not endpoint.startswith(("http://", "https://"))
-        url = f"{self.config.api_base_url}/{endpoint.lstrip('/')}" if is_relative else endpoint
+        timeout_efectivo = timeout if timeout is not None else self.config.segundos_timeout
+        verificacion_efectiva = verificar_ssl if verificar_ssl is not None else self.config.verificar_ssl
+        es_relativa = not endpoint.startswith(("http://", "https://"))
+        url = f"{self.config.url_base_api}/{endpoint.lstrip('/')}" if es_relativa else endpoint
 
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "ProyectoEntornoVirtual-AI/1.0",
         }
-        if self.config.api_key and self.config.is_trusted_url(url, is_relative):
-            headers["Authorization"] = f"Bearer {self.config.api_key}"
+        if self.config.clave_api and self.config.es_url_confiable(url, es_relativa):
+            headers["Authorization"] = f"Bearer {self.config.clave_api}"
 
-        custom_payload_provided = payload is not None
-        custom_system_provided = system_instruction is not None
-        user_message = prompt or DEFAULT_USER_MESSAGE
+        payload_personalizado = payload is not None
+        sistema_personalizado = instruccion_sistema is not None
+        mensaje_usuario = prompt or MENSAJE_USUARIO_POR_DEFECTO
 
         # Construir payload por defecto para API de IA Generativa si no se proporciona uno
         if payload is None and method.upper() == "POST":
-            system_content = system_instruction or DEFAULT_SYSTEM_INSTRUCTION
+            contenido_sistema = instruccion_sistema or INSTRUCCION_SISTEMA_POR_DEFECTO
             payload = {
-                "model": self.config.model_name,
+                "model": self.config.nombre_modelo,
                 "messages": [
-                    {"role": "system", "content": system_content},
-                    {"role": "user", "content": user_message},
+                    {"role": "system", "content": contenido_sistema},
+                    {"role": "user", "content": mensaje_usuario},
                 ],
                 "response_format": {"type": "json_object"},
             }
 
-        current_timestamp = datetime.now(timezone.utc).isoformat()
+        marca_tiempo_actual = datetime.now(timezone.utc).isoformat()
         response: Optional[requests.Response] = None
 
         try:
@@ -97,8 +97,8 @@ class HttpClient:
                 params=params,
                 json=payload,
                 headers=headers,
-                timeout=effective_timeout,
-                verify=effective_verify,
+                timeout=timeout_efectivo,
+                verify=verificacion_efectiva,
             )
 
             # Dispara HTTPError para códigos de estado 4xx y 5xx
@@ -107,14 +107,14 @@ class HttpClient:
             # Decodificación de la respuesta JSON del servidor
             data = response.json()
 
-            return validate_api_response(
+            return validar_respuesta_api(
                 data=data,
                 response=response,
                 url=url,
-                timestamp=current_timestamp,
-                required_keys=required_keys,
-                custom_payload_provided=custom_payload_provided,
-                custom_system_provided=custom_system_provided,
+                timestamp=marca_tiempo_actual,
+                claves_requeridas=claves_requeridas,
+                payload_personalizado=payload_personalizado,
+                sistema_personalizado=sistema_personalizado,
             )
 
         except Timeout as err:
@@ -124,23 +124,23 @@ class HttpClient:
                 "error_type": "Timeout",
                 "status_code": None,
                 "url": url,
-                "timestamp": current_timestamp,
-                "message": f"La petición excedió el tiempo límite ({effective_timeout} segundos).",
+                "timestamp": marca_tiempo_actual,
+                "message": f"La petición excedió el tiempo límite ({timeout_efectivo} segundos).",
                 "details": str(err),
             }
 
         except HTTPError as err:
             status_code = response.status_code if response is not None else None
             if status_code == 429:
-                retry_after = response.headers.get("Retry-After") if response is not None else None
+                reintentar_despues = response.headers.get("Retry-After") if response is not None else None
                 return {
                     "success": False,
                     "status": "error",
                     "error_type": "RateLimitExceeded",
                     "status_code": 429,
                     "url": url,
-                    "timestamp": current_timestamp,
-                    "retry_after_seconds": retry_after,
+                    "timestamp": marca_tiempo_actual,
+                    "retry_after_seconds": reintentar_despues,
                     "message": "Límite de tasa de peticiones alcanzado (HTTP 429 Too Many Requests).",
                     "details": str(err),
                 }
@@ -151,7 +151,7 @@ class HttpClient:
                 "error_type": "HTTPError",
                 "status_code": status_code,
                 "url": url,
-                "timestamp": current_timestamp,
+                "timestamp": marca_tiempo_actual,
                 "message": f"Error en la respuesta HTTP: {status_code}.",
                 "details": str(err),
             }
@@ -164,7 +164,7 @@ class HttpClient:
                 "error_type": "JSONDecodeError",
                 "status_code": status_code,
                 "url": url,
-                "timestamp": current_timestamp,
+                "timestamp": marca_tiempo_actual,
                 "message": "La respuesta obtenida del servidor no contiene una estructura JSON válida.",
                 "details": str(err),
             }
@@ -176,7 +176,7 @@ class HttpClient:
                 "error_type": "ConnectionError",
                 "status_code": None,
                 "url": url,
-                "timestamp": current_timestamp,
+                "timestamp": marca_tiempo_actual,
                 "message": "Error de conexión: No se pudo conectar con el host de destino.",
                 "details": str(err),
             }
@@ -188,7 +188,7 @@ class HttpClient:
                 "error_type": "RequestException",
                 "status_code": None,
                 "url": url,
-                "timestamp": current_timestamp,
+                "timestamp": marca_tiempo_actual,
                 "message": "Ocurrió una excepción general de requests al procesar la petición.",
                 "details": str(err),
             }

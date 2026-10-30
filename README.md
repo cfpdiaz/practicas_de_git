@@ -93,7 +93,7 @@ Verifica cómo el sistema intercepta fallos de red y protege las credenciales ej
 python app.py --test-exceptions
 ```
 
-**Resultado esperado:** Muestra en pantalla la captura controlada de 4 escenarios: petición estándar exitosa (`200 OK`), `Timeout`, `RateLimitExceeded` (HTTP 429) y `JSONDecodeError`. Los escenarios de HTTP 429 y HTML plano consultan `httpbin.org`, por lo que requieren conexión a internet; el caso `ConnectionError` está cubierto en la suite de [`test_app.py`](test_app.py). La función `is_trusted_url` garantiza que no se exfiltre la clave de autorización hacia hosts no confiables.
+**Resultado esperado:** Muestra en pantalla la captura controlada de 4 escenarios: petición estándar exitosa (`200 OK`), `Timeout`, `RateLimitExceeded` (HTTP 429) y `JSONDecodeError`. Los escenarios de HTTP 429 y HTML plano consultan `httpbin.org`, por lo que requieren conexión a internet; el caso `ConnectionError` está cubierto en la suite de [`test_app.py`](test_app.py). La función `es_url_confiable` garantiza que no se exfiltre la clave de autorización hacia hosts no confiables.
 
 ### Paso 6: Revisar las evidencias de certificación registradas
 
@@ -119,7 +119,7 @@ flowchart TD
 
     subgraph Config ["Configuración y Seguridad"]
         ENV[".env / python-dotenv"]
-        SEC["is_trusted_url + TLS SSL_VERIFY=true"]
+        SEC["es_url_confiable + TLS SSL_VERIFY=true"]
     end
 
     subgraph Prompts ["Módulo de Prompts"]
@@ -127,7 +127,7 @@ flowchart TD
     end
 
     subgraph Core ["Aplicación Principal (app.py)"]
-        FETCH["fetch_api_data"]
+        FETCH["obtener_datos_api"]
         EX_HAND["Manejador de Excepciones de Red"]
         SCHEMA["Validador Estricto de Esquema JSON"]
     end
@@ -374,7 +374,7 @@ El módulo `core/api.py` expone las tres funciones del flujo de consumo, separad
 | :--- | :--- |
 | `armar_peticion(...)` | Construye la URL, las cabeceras (con `Authorization` solo hacia hosts confiables) y el body JSON con los roles `system` y `user` separados. Devuelve un objeto `Peticion` accesible por atributo, clave o tupla. |
 | `enviar_peticion(...)` | Envía la petición con `requests` (o devuelve una `RespuestaSimulada` si la API Key es el placeholder offline). |
-| `extraer_texto(...)` | Extrae el texto generado desde la respuesta (`choices[0].message.content`), un dict o el resultado de `fetch_api_data`. |
+| `extraer_texto(...)` | Extrae el texto generado desde la respuesta (`choices[0].message.content`), un dict o el resultado de `obtener_datos_api`. |
 
 Ejemplo de uso:
 
@@ -388,7 +388,7 @@ texto = extraer_texto(respuesta)
 print(texto)  # {"resumen": "...", "categoria": "...", "prioridad": "alta"}
 ```
 
-`fetch_api_data` sigue disponible como fachada de alto nivel que valida el contrato y encapsula excepciones.
+`obtener_datos_api` sigue disponible como fachada de alto nivel que valida el contrato y encapsula excepciones.
 
 ---
 
@@ -489,7 +489,7 @@ python -m prompts.test_consistencia
 ```
 
 #### ¿Qué realiza este script?
-1. **Importación directa:** Importa la función de consumo `fetch_api_data` desde `app.py` y `BANCO_DE_PROMPTS` desde `prompts.banco`.
+1. **Importación directa:** Importa la función de consumo `obtener_datos_api` desde `app.py` y `BANCO_DE_PROMPTS` desde `prompts.banco`.
 2. **Iteraciones continuas:** Ejecuta **3 iteraciones consecutivas** por cada prompt del banco contra la API.
 3. **Validación de contrato:** En cada intento verifica:
    - Que el código de respuesta HTTP sea exitoso (`200 OK`).
@@ -600,7 +600,7 @@ Ejecuta y verifica punto por punto los siguientes requerimientos técnicos:
    - Asegura la navegación defensiva dentro del payload utilizando validaciones `isinstance()`.
 
 4. Dimensión Seguridad y Credenciales (10%):
-   - Valida la función anti-exfiltración `is_trusted_url` para garantizar que el encabezado `Authorization: Bearer <API_KEY>` NO sea enviado a hosts externos no confiables (ej. `httpbin.org`).
+   - Valida la función anti-exfiltración `es_url_confiable` para garantizar que el encabezado `Authorization: Bearer <API_KEY>` NO sea enviado a hosts externos no confiables (ej. `httpbin.org`).
    - Revisa que `SSL_VERIFY=true` sea obligatorio en `.env` y `.env.example`.
    - Ejecuta `git check-ignore -v .env` y `git status` para certificar que ni `.env` ni `.venv` sean rastreados por Git.
 

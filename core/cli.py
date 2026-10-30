@@ -9,31 +9,31 @@ import argparse
 import json
 import sys
 
-from core.api import fetch_api_data
-from core.tasks import build_task_definitions
+from core.api import obtener_datos_api
+from core.tasks import construir_definiciones_tareas
 
 
-def create_parser() -> argparse.ArgumentParser:
-    """Crea el parser de argumentos de la CLI."""
-    parser = argparse.ArgumentParser(
+def crear_analizador() -> argparse.ArgumentParser:
+    """Crea el analizador de argumentos de la CLI."""
+    analizador = argparse.ArgumentParser(
         description=(
             "Script de consumo de API de IA Generativa con salida en JSON estructurado "
             "y manejo de excepciones."
         )
     )
-    parser.add_argument(
+    analizador.add_argument(
         "--endpoint",
         type=str,
         default="chat/completions",
         help="Endpoint a consultar (por defecto: chat/completions relativo a API_BASE_URL o URL absoluta).",
     )
-    parser.add_argument(
+    analizador.add_argument(
         "--prompt",
         type=str,
         default=None,
         help="Texto de entrada para análisis por el modelo de IA.",
     )
-    parser.add_argument(
+    analizador.add_argument(
         "--task",
         type=str,
         default=None,
@@ -42,38 +42,38 @@ def create_parser() -> argparse.ArgumentParser:
             "analisis_sentimiento_soporte, extraccion_entidades_logistica)."
         ),
     )
-    parser.add_argument(
+    analizador.add_argument(
         "--test-exceptions",
         action="store_true",
         help="Ejecuta pruebas automáticas de Timeout, HTTP 429 y JSONDecodeError.",
     )
-    return parser
+    return analizador
 
 
-def run_tests() -> None:
+def ejecutar_pruebas() -> None:
     """Ejecuta una batería de comprobaciones para demostrar cada excepción solicitada."""
     print("=== MODO DE PRUEBA DE EXCEPCIONES ===", file=sys.stderr)
 
-    scenarios = [
+    escenarios = [
         (
             "1. Petición estándar hacia endpoint de IA (200 OK con structured_output)",
-            lambda: fetch_api_data("chat/completions"),
+            lambda: obtener_datos_api("chat/completions"),
         ),
         (
             "2. Manejo de Timeout (forzado con timeout=0.001)",
-            lambda: fetch_api_data("chat/completions", timeout=0.001),
+            lambda: obtener_datos_api("chat/completions", timeout=0.001),
         ),
         (
             "3. Manejo de Rate Limit HTTP 429",
-            lambda: fetch_api_data("https://httpbin.org/status/429", method="GET"),
+            lambda: obtener_datos_api("https://httpbin.org/status/429", method="GET"),
         ),
         (
             "4. Manejo de JSONDecodeError (endpoint que devuelve HTML plano)",
-            lambda: fetch_api_data("https://httpbin.org/html", method="GET"),
+            lambda: obtener_datos_api("https://httpbin.org/html", method="GET"),
         ),
     ]
 
-    for title, call in scenarios:
+    for title, call in escenarios:
         print(f"\n--- {title} ---", file=sys.stderr)
         res = call()
         print(json.dumps(res, indent=2, ensure_ascii=False))
@@ -81,30 +81,30 @@ def run_tests() -> None:
 
 def main() -> None:
     """Punto de entrada principal de la CLI."""
-    parser = create_parser()
-    args = parser.parse_args()
+    analizador = crear_analizador()
+    argumentos = analizador.parse_args()
 
-    if args.test_exceptions:
-        run_tests()
+    if argumentos.test_exceptions:
+        ejecutar_pruebas()
         return
 
-    prompt = args.prompt
-    system_instruction = None
-    required_keys = None
+    prompt = argumentos.prompt
+    instruccion_sistema = None
+    claves_requeridas = None
 
-    if args.task:
-        task_norm = args.task.strip().lower()
-        matched = build_task_definitions().get(task_norm)
-        if matched:
-            prompt = args.prompt or matched["prompt"]
-            system_instruction = matched["system_instruction"]
-            required_keys = matched["required_keys"]
+    if argumentos.task:
+        tarea_normalizada = argumentos.task.strip().lower()
+        coincidencia = construir_definiciones_tareas().get(tarea_normalizada)
+        if coincidencia:
+            prompt = argumentos.prompt or coincidencia["prompt"]
+            instruccion_sistema = coincidencia["instruccion_sistema"]
+            claves_requeridas = coincidencia["claves_requeridas"]
 
-    result = fetch_api_data(
-        endpoint=args.endpoint,
+    result = obtener_datos_api(
+        endpoint=argumentos.endpoint,
         prompt=prompt,
-        system_instruction=system_instruction,
-        required_keys=required_keys,
+        instruccion_sistema=instruccion_sistema,
+        claves_requeridas=claves_requeridas,
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
 

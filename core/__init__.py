@@ -11,40 +11,40 @@ Módulos:
 - cli: Interfaz de línea de comandos.
 """
 
-from core.config import AppConfig, load_config, config, is_trusted_url
-from core.schemas import ALLOWED_PRIORITIES, REQUIRED_KEYS, validate_api_response
-from core.simulation import build_simulated_response, is_simulation_mode
-from core.http_client import HttpClient
+from core.config import ConfiguracionApp, cargar_configuracion, config, es_url_confiable
+from core.schemas import PRIORIDADES_PERMITIDAS, CLAVES_REQUERIDAS, validar_respuesta_api
+from core.simulation import construir_respuesta_simulada, es_modo_simulacion
+from core.http_client import ClienteHttp
 from core.api import (
     Peticion,
     RespuestaSimulada,
     armar_peticion,
     enviar_peticion,
     extraer_texto,
-    fetch_api_data,
+    obtener_datos_api,
 )
-from core.tasks import build_task_definitions
-from core.cli import create_parser, run_tests, main
+from core.tasks import construir_definiciones_tareas
+from core.cli import crear_analizador, ejecutar_pruebas, main
 
 __all__ = [
-    "AppConfig",
-    "load_config",
+    "ConfiguracionApp",
+    "cargar_configuracion",
     "config",
-    "is_trusted_url",
-    "ALLOWED_PRIORITIES",
-    "REQUIRED_KEYS",
-    "validate_api_response",
-    "build_simulated_response",
-    "is_simulation_mode",
-    "HttpClient",
+    "es_url_confiable",
+    "PRIORIDADES_PERMITIDAS",
+    "CLAVES_REQUERIDAS",
+    "validar_respuesta_api",
+    "construir_respuesta_simulada",
+    "es_modo_simulacion",
+    "ClienteHttp",
     "Peticion",
     "RespuestaSimulada",
     "armar_peticion",
     "enviar_peticion",
     "extraer_texto",
-    "fetch_api_data",
-    "build_task_definitions",
-    "create_parser",
-    "run_tests",
+    "obtener_datos_api",
+    "construir_definiciones_tareas",
+    "crear_analizador",
+    "ejecutar_pruebas",
     "main",
 ]

@@ -14,77 +14,77 @@ from dotenv import load_dotenv
 # Cargar .env una sola vez al importar el módulo
 load_dotenv()
 
-DEFAULT_TRUSTED_DOMAINS = frozenset({"api.groq.com", "api.openai.com", "openrouter.ai"})
+DOMINIOS_CONFIABLES_POR_DEFECTO = frozenset({"api.groq.com", "api.openai.com", "openrouter.ai"})
 
 
 @dataclass(frozen=True)
-class AppConfig:
+class ConfiguracionApp:
     """Configuración inmutable de la aplicación."""
 
-    api_base_url: str
-    api_key: str | None
-    timeout_seconds: float
-    model_name: str
-    ssl_verify: bool
-    trusted_domains: frozenset[str] = DEFAULT_TRUSTED_DOMAINS
+    url_base_api: str
+    clave_api: str | None
+    segundos_timeout: float
+    nombre_modelo: str
+    verificar_ssl: bool
+    dominios_confiables: frozenset[str] = DOMINIOS_CONFIABLES_POR_DEFECTO
 
     @property
-    def base_host(self) -> str:
+    def host_base(self) -> str:
         """Host de la URL base en minúsculas."""
-        return (urlparse(self.api_base_url).hostname or "").lower()
+        return (urlparse(self.url_base_api).hostname or "").lower()
 
-    def is_trusted_url(self, url: str, is_relative: bool) -> bool:
+    def es_url_confiable(self, url: str, es_relativa: bool) -> bool:
         """
         Verifica si una URL es confiable para adjuntar credenciales (API Key).
 
         Es confiable si:
-        1. Es una ruta relativa a api_base_url.
+        1. Es una ruta relativa a url_base_api.
         2. Su host pertenece a los dominios confiables.
-        3. Su host coincide con el host configurado en api_base_url.
+        3. Su host coincide con el host configurado en url_base_api.
         """
-        if is_relative:
+        if es_relativa:
             return True
 
-        target_host = (urlparse(url).hostname or "").lower()
-        if not target_host:
+        host_destino = (urlparse(url).hostname or "").lower()
+        if not host_destino:
             return False
 
-        if target_host in self.trusted_domains:
+        if host_destino in self.dominios_confiables:
             return True
 
-        if self.base_host and target_host == self.base_host:
+        if self.host_base and host_destino == self.host_base:
             return True
 
         return False
 
 
-def load_config() -> AppConfig:
+def cargar_configuracion() -> ConfiguracionApp:
     """
     Carga la configuración desde variables de entorno.
 
     Returns:
-        AppConfig validada e inmutable.
+        ConfiguracionApp validada e inmutable.
     """
-    api_base_url = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
-    api_key = os.getenv("API_KEY") or None
-    timeout_seconds = float(os.getenv("API_TIMEOUT", "10.0"))
-    model_name = os.getenv("AI_MODEL", "llama-3.3-70b-versatile")
-    ssl_verify_env = os.getenv("SSL_VERIFY", "true").strip().lower()
-    ssl_verify = ssl_verify_env not in ("false", "0", "no", "off")
+    url_base_api = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+    clave_api = os.getenv("API_KEY") or None
+    segundos_timeout = float(os.getenv("API_TIMEOUT", "10.0"))
+    nombre_modelo = os.getenv("AI_MODEL", "llama-3.3-70b-versatile")
+    valor_verificar_ssl = os.getenv("SSL_VERIFY", "true").strip().lower()
+    verificar_ssl = valor_verificar_ssl not in ("false", "0", "no", "off")
 
-    return AppConfig(
-        api_base_url=api_base_url,
-        api_key=api_key,
-        timeout_seconds=timeout_seconds,
-        model_name=model_name,
-        ssl_verify=ssl_verify,
+    return ConfiguracionApp(
+        url_base_api=url_base_api,
+        clave_api=clave_api,
+        segundos_timeout=segundos_timeout,
+        nombre_modelo=nombre_modelo,
+        verificar_ssl=verificar_ssl,
     )
 
 
 # Instancia global por defecto (la que usa la CLI y los flujos normales)
-config = load_config()
+config = cargar_configuracion()
 
 
-def is_trusted_url(url: str, is_relative: bool) -> bool:
+def es_url_confiable(url: str, es_relativa: bool) -> bool:
     """Helper a nivel de módulo usando la configuración global."""
-    return config.is_trusted_url(url, is_relative)
+    return config.es_url_confiable(url, es_relativa)

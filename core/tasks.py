@@ -10,7 +10,7 @@ from typing import Any, Dict
 from prompts.banco import BANCO_DE_PROMPTS
 
 # Mapeo de alias CLI -> nombre interno en prompts/banco.py
-_TASK_ALIASES = {
+_ALIAS_TAREAS = {
     "incidente_tecnico": "clasificar_incidente",
     "clasificar_incidente": "clasificar_incidente",
     "soporte": "analisis_sentimiento_soporte",
@@ -19,16 +19,16 @@ _TASK_ALIASES = {
     "extraccion_entidades_logistica": "extraccion_entidades_logistica",
 }
 
-_BANCO_MAP = {item["nombre"]: item for item in BANCO_DE_PROMPTS}
+_MAPA_BANCO = {item["nombre"]: item for item in BANCO_DE_PROMPTS}
 
 
-def build_task_definitions() -> Dict[str, Dict[str, Any]]:
+def construir_definiciones_tareas() -> Dict[str, Dict[str, Any]]:
     """Construye las definiciones de tareas desde prompts/banco.py (fuente de verdad)."""
     return {
         alias: {
-            "prompt": _BANCO_MAP[name]["ejemplo_entrada"],
-            "system_instruction": _BANCO_MAP[name]["system_instruction"],
-            "required_keys": set(_BANCO_MAP[name]["claves_esperadas"]),
+            "prompt": _MAPA_BANCO[name]["ejemplo_entrada"],
+            "instruccion_sistema": _MAPA_BANCO[name]["instruccion_sistema"],
+            "claves_requeridas": set(_MAPA_BANCO[name]["claves_esperadas"]),
         }
-        for alias, name in _TASK_ALIASES.items()
+        for alias, name in _ALIAS_TAREAS.items()
     }

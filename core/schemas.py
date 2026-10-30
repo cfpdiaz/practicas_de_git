@@ -9,18 +9,18 @@ import json
 from typing import Any, Dict, Optional
 
 # Valores permitidos y llaves obligatorias para el contrato JSON
-ALLOWED_PRIORITIES = {"alta", "media", "baja"}
-REQUIRED_KEYS = {"resumen", "categoria", "prioridad"}
+PRIORIDADES_PERMITIDAS = {"alta", "media", "baja"}
+CLAVES_REQUERIDAS = {"resumen", "categoria", "prioridad"}
 
 
-def validate_api_response(
+def validar_respuesta_api(
     data: Any,
     response: Any,
     url: str,
     timestamp: str,
-    required_keys: Optional[set[str]],
-    custom_payload_provided: bool,
-    custom_system_provided: bool,
+    claves_requeridas: Optional[set[str]],
+    payload_personalizado: bool,
+    sistema_personalizado: bool,
 ) -> Dict[str, Any]:
     """
     Valida la estructura de la respuesta de la API y el contrato JSON.
@@ -30,9 +30,9 @@ def validate_api_response(
         response: Objeto response de requests (para status_code).
         url: URL consultada.
         timestamp: Marca de tiempo ISO de la petición.
-        required_keys: Claves requeridas por el contrato (opcional).
-        custom_payload_provided: True si se envió un payload personalizado.
-        custom_system_provided: True si se envió una instrucción de sistema personalizada.
+        claves_requeridas: Claves requeridas por el contrato (opcional).
+        payload_personalizado: True si se envió un payload personalizado.
+        sistema_personalizado: True si se envió una instrucción de sistema personalizada.
 
     Returns:
         Dict de resultado ("success" True/False y campos asociados).
@@ -62,8 +62,8 @@ def validate_api_response(
             "details": f"Valor recibido en choices: {choices!r}",
         }
 
-    first_choice = choices[0]
-    if not isinstance(first_choice, dict):
+    primera_opcion = choices[0]
+    if not isinstance(primera_opcion, dict):
         return {
             "success": False,
             "status": "error",
@@ -72,10 +72,10 @@ def validate_api_response(
             "url": url,
             "timestamp": timestamp,
             "message": "El primer elemento de 'choices' no es un diccionario válido.",
-            "details": f"Tipo de choices[0]: {type(first_choice).__name__}",
+            "details": f"Tipo de choices[0]: {type(primera_opcion).__name__}",
         }
 
-    message = first_choice.get("message")
+    message = primera_opcion.get("message")
     if not isinstance(message, dict):
         return {
             "success": False,
@@ -88,8 +88,8 @@ def validate_api_response(
             "details": f"Tipo de message: {type(message).__name__}",
         }
 
-    content_raw = message.get("content")
-    if not isinstance(content_raw, str) or not content_raw.strip():
+    contenido_crudo = message.get("content")
+    if not isinstance(contenido_crudo, str) or not contenido_crudo.strip():
         return {
             "success": False,
             "status": "error",
@@ -98,11 +98,11 @@ def validate_api_response(
             "url": url,
             "timestamp": timestamp,
             "message": "El campo 'content' dentro de message no es una cadena de texto válida o está vacío.",
-            "details": f"Valor de content: {content_raw!r}",
+            "details": f"Valor de content: {contenido_crudo!r}",
         }
 
     try:
-        structured_content = json.loads(content_raw)
+        contenido_estructurado = json.loads(contenido_crudo)
     except (json.JSONDecodeError, TypeError) as err:
         return {
             "success": False,
@@ -115,7 +115,7 @@ def validate_api_response(
             "details": str(err),
         }
 
-    if not isinstance(structured_content, dict):
+    if not isinstance(contenido_estructurado, dict):
         return {
             "success": False,
             "status": "error",
@@ -124,18 +124,18 @@ def validate_api_response(
             "url": url,
             "timestamp": timestamp,
             "message": "El JSON devuelto por el modelo debe ser un diccionario/objeto.",
-            "details": f"Tipo recibido: {type(structured_content).__name__}",
+            "details": f"Tipo recibido: {type(contenido_estructurado).__name__}",
         }
 
-    effective_required_keys = (
-        set(required_keys)
-        if required_keys is not None
-        else (REQUIRED_KEYS if (not custom_payload_provided and not custom_system_provided) else None)
+    claves_requeridas_efectivas = (
+        set(claves_requeridas)
+        if claves_requeridas is not None
+        else (CLAVES_REQUERIDAS if (not payload_personalizado and not sistema_personalizado) else None)
     )
 
-    if effective_required_keys:
-        missing_keys = effective_required_keys - set(structured_content.keys())
-        if missing_keys:
+    if claves_requeridas_efectivas:
+        claves_faltantes = claves_requeridas_efectivas - set(contenido_estructurado.keys())
+        if claves_faltantes:
             return {
                 "success": False,
                 "status": "error",
@@ -143,11 +143,11 @@ def validate_api_response(
                 "status_code": response.status_code,
                 "url": url,
                 "timestamp": timestamp,
-                "message": f"El JSON devuelto carece de llaves requeridas por el contrato: {sorted(missing_keys)}.",
-                "details": f"Llaves presentes: {list(structured_content.keys())}",
+                "message": f"El JSON devuelto carece de llaves requeridas por el contrato: {sorted(claves_faltantes)}.",
+                "details": f"Llaves presentes: {list(contenido_estructurado.keys())}",
             }
 
-    if effective_required_keys == REQUIRED_KEYS and structured_content.get("prioridad") not in ALLOWED_PRIORITIES:
+    if claves_requeridas_efectivas == CLAVES_REQUERIDAS and contenido_estructurado.get("prioridad") not in PRIORIDADES_PERMITIDAS:
         return {
             "success": False,
             "status": "error",
@@ -155,8 +155,8 @@ def validate_api_response(
             "status_code": response.status_code,
             "url": url,
             "timestamp": timestamp,
-            "message": f"El campo 'prioridad' debe ser uno de {sorted(ALLOWED_PRIORITIES)}.",
-            "details": f"Valor recibido: {structured_content.get('prioridad')!r}",
+            "message": f"El campo 'prioridad' debe ser uno de {sorted(PRIORIDADES_PERMITIDAS)}.",
+            "details": f"Valor recibido: {contenido_estructurado.get('prioridad')!r}",
         }
 
     return {
@@ -166,5 +166,5 @@ def validate_api_response(
         "url": url,
         "timestamp": timestamp,
         "data": data,
-        "structured_output": structured_content,
+        "structured_output": contenido_estructurado,
     }

@@ -25,11 +25,11 @@ flowchart TD
 
     subgraph Config ["Configuración y Seguridad"]
         ENV[".env / python-dotenv"]
-        SEC["is_trusted_url + TLS SSL_VERIFY=true"]
+        SEC["es_url_confiable + TLS SSL_VERIFY=true"]
     end
 
     subgraph Core ["Aplicación Principal (app.py)"]
-        FETCH["fetch_api_data"]
+        FETCH["obtener_datos_api"]
         EX_HAND["Manejador de Excepciones de Red"]
         SCHEMA["Validador Estricto de Esquema JSON"]
     end

@@ -59,7 +59,7 @@ Resultados:
 - `Timeout`: interceptado correctamente.
 - HTTP 429: clasificado como `RateLimitExceeded`.
 - HTML/no-JSON: clasificado como `JSONDecodeError`.
-- La comprobación con la credencial cargada confirmó `is_trusted_url=False` y `authorization_sent=False` para `https://httpbin.org/test`.
+- La comprobación con la credencial cargada confirmó `es_url_confiable=False` y `authorization_sent=False` para `https://httpbin.org/test`.
 
 ## 4. Suite unitaria
 
@@ -67,11 +67,11 @@ Con el entorno virtual activado:
 
 ```text
 pytest -ra
-collected 6 items
-6 passed in 2.19s
+collected 58 items
+58 passed
 ```
 
-Resultado: **6 passed, 0 failed, 0 xfailed**.
+Resultado: **58 passed, 0 failed, 0 xfailed**.
 
 ## 5. Evidencias del repositorio
 
@@ -84,7 +84,7 @@ Resultado: **6 passed, 0 failed, 0 xfailed**.
 
 | Dimensión | Resultado |
 |---|---|
-| Python y código | PASS — 6/6 tests |
+| Python y código | PASS — 58/58 tests |
 | Prompt y respuesta | PASS vivo — 9/9 |
 | Consumo API | PASS vivo — HTTP 200 |
 | Excepciones | PASS |

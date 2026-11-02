@@ -68,7 +68,7 @@ def cargar_configuracion() -> ConfiguracionApp:
     url_base_api = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
     clave_api = os.getenv("API_KEY") or None
     segundos_timeout = float(os.getenv("API_TIMEOUT", "10.0"))
-    nombre_modelo = os.getenv("AI_MODEL", "llama-3.3-70b-versatile")
+    nombre_modelo = os.getenv("AI_MODEL", "openai/gpt-oss-120b")
     valor_verificar_ssl = os.getenv("SSL_VERIFY", "true").strip().lower()
     verificar_ssl = valor_verificar_ssl not in ("false", "0", "no", "off")
 

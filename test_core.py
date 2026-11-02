@@ -79,7 +79,7 @@ class TestCargarConfiguracion:
         assert cfg.url_base_api == "https://api.groq.com/openai/v1"
         assert cfg.clave_api is None
         assert cfg.segundos_timeout == 10.0
-        assert cfg.nombre_modelo == "llama-3.3-70b-versatile"
+        assert cfg.nombre_modelo == "openai/gpt-oss-120b"
         assert cfg.verificar_ssl is True
 
     def test_verificar_ssl_false(self, monkeypatch):
@@ -326,7 +326,7 @@ class TestConstruirDefinicionesTareas:
 # Cobertura de ramas adicionales de validación / simulación / config
 # --------------------------------------------------------------------------- #
 
-def test_schema_first_choice_not_dict_is_rejected():
+def test_schema_primera_opcion_no_es_dict():
     data = {"choices": ["no-es-dict"]}
     result = validar_respuesta_api(data, crear_respuesta_mock(200), "u", "t", None, False, False)
     assert result["success"] is False

@@ -102,6 +102,7 @@ Para verificar la consistencia obtenida en ejecuciones reales previas contra la 
 - [`informe_ejecucion.md`](informe_ejecucion.md): registro detallado de trazas HTTP, códigos de respuesta y consumo real de tokens.
 - [`prompts/registro_resultados.json`](prompts/registro_resultados.json): evidencia de la prueba de consistencia (9/9 ejecuciones válidas contra los 3 prompts del banco).
 - [`REPORTE_VERIFICACION_FINAL.md`](REPORTE_VERIFICACION_FINAL.md): informe consolidado de la auditoría técnica.
+- [`docs/`](docs/): comparación y justificación de la selección del modelo, y registro de decisión de arquitectura (ADR).
 
 ---
 
@@ -114,7 +115,7 @@ flowchart TD
     subgraph Entrada ["Interfaz de Línea de Comandos (CLI)"]
         CLI["app.py --task / --test-exceptions"]
         CONSISTENCY["prompts/test_consistencia.py"]
-        TESTS["pytest / test_app.py"]
+        TESTS["pytest / test_app.py + test_core.py"]
     end
 
     subgraph Config ["Configuración y Seguridad"]
@@ -217,14 +218,31 @@ flowchart TD
 ├── .gitignore            # Exclusión de archivos temporales, .env y .venv
 ├── claudio_md.jpg        # Imagen de presentación
 ├── main.py               # Script de verificación básica del entorno
-├── app.py                # Script principal de consumo de API de IA estructurado
-├── requirements.txt      # Registro congelado de dependencias del proyecto
-├── test_app.py           # Suite de pruebas unitarias aisladas con mocks
+├── app.py                # Punto de entrada (wrapper) y funciones de la rúbrica
+├── core/                 # Núcleo modular de la aplicación
+│   ├── __init__.py       # Exportaciones del paquete
+│   ├── api.py            # armar_peticion, enviar_peticion, extraer_texto, obtener_datos_api
+│   ├── cli.py            # Interfaz de línea de comandos
+│   ├── config.py         # Configuración inmutable (ConfiguracionApp)
+│   ├── http_client.py    # Cliente HTTP y manejo de excepciones
+│   ├── schemas.py        # Contratos JSON y validación
+│   ├── simulation.py     # Modo simulación offline
+│   └── tasks.py          # Catálogo de tareas desde prompts/banco.py
 ├── prompts/              # Banco de prompts estructurados y pruebas de consistencia (Gate 1)
 │   ├── __init__.py       # Inicializador del paquete prompts
 │   ├── banco.py          # Definición del banco de prompts (BANCO_DE_PROMPTS)
 │   ├── test_consistencia.py # Ejecutor de iteraciones y validación de contrato JSON
 │   └── registro_resultados.json # Evidencia generada automáticamente (meta 3/3)
+├── docs/                 # Comparación de modelos y ADR de arquitectura
+│   ├── comparacion_y_justificacion_de_seleccion_de_modelo.md
+│   └── decision-arquitectura.md
+├── test_app.py           # Pruebas unitarias del flujo HTTP (6 tests)
+├── test_core.py          # Pruebas unitarias del paquete core (52 tests)
+├── requirements.txt      # Registro congelado de dependencias del proyecto
+├── AUDITORIA_GATE1.md    # Instrucciones de auditoría técnica
+├── informe_ejecucion.md  # Trazas de ejecución y consumo de tokens
+├── REPORTE_VERIFICACION_FINAL.md # Informe consolidado de la auditoría
+├── bibliografia_y_referencias.md # Fuentes y referencias del proyecto
 └── README.md             # Documentación general y registro de instalación
 ```
 
@@ -583,7 +601,7 @@ Ejecuta y verifica punto por punto los siguientes requerimientos técnicos:
 1. Dimensión Python y Código (20%):
    - Evalúa la arquitectura modular y limpia de `app.py`.
    - Ejecuta en terminal: `pytest -ra`
-   - Confirma que la suite de pruebas unitarias (`test_app.py`) obtenga `6 passed, 0 failed, 0 xfailed` utilizando mocks de red y validación estricta de esquema.
+   - Confirma que la suite de pruebas unitarias (`test_app.py` + `test_core.py`) obtenga `58 passed, 0 failed, 0 xfailed` utilizando mocks de red y validación estricta de esquema.
 
 2. Dimensión Consumo de API (25%):
    - Ejecuta: `python app.py`

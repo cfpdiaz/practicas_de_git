@@ -14,14 +14,14 @@ La aplicación quedó configurada con un modelo Groq disponible, la autenticaci�
 - La API key solo está en `.env` local y no se reproduce en documentación.
 - `.env` y `.venv` no aparecen en `git ls-files`.
 - `git check-ignore -v .env` confirma `.gitignore:38:.env`.
-- `is_trusted_url` evita adjuntar `Authorization` a hosts no confiables; la comprobación con `https://httpbin.org/test` confirmó `authorization_sent=False`.
+- `es_url_confiable` evita adjuntar `Authorization` a hosts no confiables; la comprobación con `https://httpbin.org/test` confirmó `authorization_sent=False`.
 - `SSL_VERIFY=true` está activo en `.env` y `.env.example`.
 - La credencial debe rotarse después de esta sesión porque fue compartida en el chat.
 
 ## Dependencias y pruebas
 
 - `pip check`: **No broken requirements found**.
-- `pytest -ra`: **6 passed, 0 failed, 0 xfailed**.
+- `pytest -ra`: **58 passed, 0 failed, 0 xfailed**.
 - Los casos cubren 200 OK, `Timeout`, HTTP 429, `JSONDecodeError`, `ConnectionError` y validación de esquema incompleto.
 
 ## Prompt y salida estructurada
@@ -43,7 +43,7 @@ Antes del commit se verificó:
 - No existen archivos vacíos en el proyecto fuera de `.git`, `.venv`, cachés y bytecode.
 - No se detectaron patrones de credenciales en los archivos candidatos al commit.
 - `README.md` contiene dos diagramas Mermaid.
-- Existen `README.md`, `.env.example`, `requirements.txt`, `test_app.py`, `prompts/` e informes de ejecución.
+- Existen `README.md`, `.env.example`, `requirements.txt`, `core/`, `test_app.py`, `test_core.py`, `prompts/`, `docs/` e informes de ejecución.
 
 ## Conclusión
 

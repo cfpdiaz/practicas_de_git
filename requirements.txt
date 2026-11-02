@@ -11,5 +11,7 @@ urllib3==2.8.0
 
 # Dependencias de desarrollo y pruebas
 pytest==8.4.2
+pytest-cov==7.1.0
 
-# Herramientas de calidad opcionales (instalar con: pip install flake8 pytest-cov)
+# Herramientas de calidad (linting)
+flake8==7.4.1

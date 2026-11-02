@@ -90,7 +90,7 @@ Resultados:
 - `Timeout`: interceptado.
 - HTTP 429: clasificado como `RateLimitExceeded`.
 - HTML/no-JSON: clasificado como `JSONDecodeError`.
-- `is_trusted_url("https://httpbin.org/test", False)` devolvió `False` y no se envió `Authorization`.
+- `es_url_confiable("https://httpbin.org/test", False)` devolvió `False` y no se envió `Authorization`.
 
 ## 5. Suite unitaria
 
@@ -98,11 +98,11 @@ Con `.venv` activado:
 
 ```text
 pytest -ra
-collected 6 items
-6 passed in 2.19s
+collected 58 items
+58 passed
 ```
 
-Resultado: **6 passed, 0 failed, 0 xfailed**.
+Resultado: **58 passed, 0 failed, 0 xfailed**.
 
 ## 6. Repositorio y evidencias
 

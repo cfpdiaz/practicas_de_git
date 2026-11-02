@@ -217,7 +217,7 @@ flowchart TD
 ├── .gitattributes        # Normalización de saltos de línea (LF/CRLF)
 ├── .gitignore            # Exclusión de archivos temporales, .env y .venv
 ├── claudio_md.jpg        # Imagen de presentación
-├── main.py               # Script de verificación básica del entorno
+├── main.py               # Punto de entrada directo (ejecuta el flujo sin banderas)
 ├── app.py                # Punto de entrada (wrapper) y funciones de la rúbrica
 ├── core/                 # Núcleo modular de la aplicación
 │   ├── __init__.py       # Exportaciones del paquete
@@ -303,15 +303,22 @@ API_KEY=tu_groq_api_key_aqui
 
 ### 6. Ejecutar los Scripts
 
-#### A. Verificación del Entorno (`main.py`)
+#### A. Ejecución Directa del Flujo (`main.py`)
+Ejecuta el flujo completo sin banderas obligatorias (ideal para auditoría automatizada):
 ```powershell
 python main.py
 ```
 *Salida esperada:*
 ```text
 ¡Entorno virtual y proyecto configurados correctamente!
-Versión de Python: 3.12.x ...
+Versión de Python: 3.12.x
+Modelo: openai/gpt-oss-120b
+Endpoint: https://api.groq.com/openai/v1
+
+=== Resultado del flujo de consumo (sin banderas) ===
+{ ... JSON con status_code 200, structured_output y data.usage ... }
 ```
+Si no hay API Key configurada (placeholder), el modo de simulación offline responde sin conexión ni credenciales.
 
 #### B. Procesamiento de Texto con Modelo de IA (`app.py`)
 Ejecuta la consulta enviando el prompt de usuario o seleccionando una tarea predefinida al modelo de IA generativa (`openai/gpt-oss-120b`):
@@ -461,7 +468,7 @@ A continuación se documenta el ciclo de validación de instalación desde un es
    ```
 
 4. **Verificación de ejecución de scripts:**
-   - `python main.py`: Ejecución exitosa reconociendo el intérprete Python 3.12.
+   - `python main.py`: Ejecución directa exitosa (verifica el entorno y ejecuta el flujo sin banderas).
    - `python app.py`: Consumo de endpoint REST completado con código `200 OK` y serialización JSON.
    - `python app.py --test-exceptions`: 4 casos validados (`Petición exitosa`, `Timeout`, `HTTP 429 RateLimitExceeded`, `JSONDecodeError`).
 

@@ -1,7 +1,7 @@
 {
-  "fecha": "2026-10-29",
-  "hora": "20:51:24",
-  "timestamp_iso": "2026-10-29T23:51:24.221077+00:00",
+  "fecha": "2026-11-09",
+  "hora": "01:38:31",
+  "timestamp_iso": "2026-11-09T04:38:31.107303+00:00",
   "resumen_ejecucion": {
     "total_prompts": 3,
     "iteraciones_por_prompt": 3,
@@ -35,8 +35,8 @@
             "prioridad"
           ],
           "salida": {
-            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos en producción afectando la latencia de los usuarios.",
-            "categoria": "Infraestructura",
+            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos de producción, provocando respuestas muy lentas para los clientes",
+            "categoria": "rendimiento de base de datos",
             "prioridad": "alta"
           },
           "error": null,
@@ -51,8 +51,8 @@
             "prioridad"
           ],
           "salida": {
-            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos en producción afectando la latencia de los usuarios.",
-            "categoria": "Infraestructura",
+            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos de producción, generando tiempos de respuesta muy lentos para los clientes",
+            "categoria": "Base de datos",
             "prioridad": "alta"
           },
           "error": null,
@@ -67,8 +67,8 @@
             "prioridad"
           ],
           "salida": {
-            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos en producción afectando la latencia de los usuarios.",
-            "categoria": "Infraestructura",
+            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos de producción, provocando respuestas muy lentas a los clientes.",
+            "categoria": "rendimiento",
             "prioridad": "alta"
           },
           "error": null,
@@ -99,7 +99,7 @@
             "urgencia"
           ],
           "salida": {
-            "resumen": "Usuario reporta 3 días sin acceso a cuenta pagada y exige resolución inmediata.",
+            "resumen": "Usuario lleva 3 días sin poder acceder a su cuenta pagada y reclama una solución inmediata o la cancelación del servicio.",
             "sentimiento": "negativo",
             "urgencia": "alta"
           },
@@ -115,7 +115,7 @@
             "urgencia"
           ],
           "salida": {
-            "resumen": "Usuario reporta 3 días sin acceso a cuenta pagada y exige resolución inmediata.",
+            "resumen": "No puede acceder a su cuenta pagada desde hace 3 días y exige una solución inmediata o la cancelación del servicio",
             "sentimiento": "negativo",
             "urgencia": "alta"
           },
@@ -131,7 +131,7 @@
             "urgencia"
           ],
           "salida": {
-            "resumen": "Usuario reporta 3 días sin acceso a cuenta pagada y exige resolución inmediata.",
+            "resumen": "Usuario no puede acceder a su cuenta pagada desde hace 3 días y solicita solución inmediata o cancelación del servicio",
             "sentimiento": "negativo",
             "urgencia": "alta"
           },

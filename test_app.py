@@ -1,8 +1,12 @@
-"""Pruebas unitarias para ``core.api.obtener_datos_api``.
+"""Pruebas unitarias para ``core.api.obtener_datos_api`` (cliente modular).
 
-La suite inyecta una ``ConfiguracionApp`` de prueba (sin depender de variables globales)
-y reemplaza ``core.http_client.requests.request`` con ``unittest.mock``; nunca
-consume cuota ni realiza tráfico hacia el proveedor de IA.
+La suite inyecta una ``ConfiguracionApp`` de prueba (sin depender de variables
+globales) y reemplaza ``core.http_client.requests.request`` con
+``unittest.mock``; nunca consume cuota ni realiza tráfico hacia el proveedor.
+
+Contiene 6 pruebas: éxito HTTP 200 + contrato JSON, Timeout, HTTPError 429
+(RateLimitExceeded), JSONDecodeError, ConnectionError y SchemaValidationError
+(esquema y tipos de datos con ``isinstance``).
 """
 
 import json
@@ -15,6 +19,8 @@ from core.config import ConfiguracionApp
 
 
 ENDPOINT_PRUEBA = "https://example.test/openai/v1/chat/completions"
+CONTRATO_ESPERADO = ("resumen", "categoria", "prioridad")
+PRIORIDADES_VALIDAS = ("alta", "media", "baja")
 
 
 def crear_configuracion(**overrides) -> ConfiguracionApp:
@@ -41,14 +47,9 @@ def crear_respuesta(*, status_code=200, payload=None):
     return response
 
 
-def test_obtener_datos_api_success_parses_structured_json_and_separates_prompts():
-    """Una respuesta 200 se parsea y conserva roles system/user por separado."""
-    estructurado_esperado = {
-        "resumen": "CPU elevada",
-        "categoria": "Infraestructura",
-        "prioridad": "alta",
-    }
-    payload_api = {
+def payload_con_estructurado(estructurado):
+    """Envuelve un dict estructurado en el formato de respuesta de la API."""
+    return {
         "id": "chatcmpl-test",
         "object": "chat.completion",
         "choices": [
@@ -56,12 +57,22 @@ def test_obtener_datos_api_success_parses_structured_json_and_separates_prompts(
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": json.dumps(estructurado_esperado),
+                    "content": json.dumps(estructurado, ensure_ascii=False),
                 },
                 "finish_reason": "stop",
             }
         ],
     }
+
+
+def test_obtener_datos_api_success_parses_structured_json_and_separates_prompts():
+    """Una respuesta 200 se parsea y devuelve el contrato de datos en español."""
+    estructurado_esperado = {
+        "resumen": "CPU elevada",
+        "categoria": "Infraestructura",
+        "prioridad": "alta",
+    }
+    payload_api = payload_con_estructurado(estructurado_esperado)
     response = crear_respuesta(payload=payload_api)
 
     with patch("core.http_client.requests.request", return_value=response) as request:
@@ -76,6 +87,12 @@ def test_obtener_datos_api_success_parses_structured_json_and_separates_prompts(
     assert result["status_code"] == 200
     assert result["data"] == payload_api
     assert result["structured_output"] == estructurado_esperado
+
+    # Contrato de datos traducido al español: resumen, categoria y prioridad.
+    assert set(result["structured_output"].keys()) == set(CONTRATO_ESPERADO)
+    assert isinstance(result["structured_output"]["resumen"], str)
+    assert isinstance(result["structured_output"]["categoria"], str)
+    assert result["structured_output"]["prioridad"] in PRIORIDADES_VALIDAS
 
     request.assert_called_once()
     kwargs_llamada = request.call_args.kwargs
@@ -161,22 +178,26 @@ def test_obtener_datos_api_connection_error_is_returned():
     request.assert_called_once()
 
 
-def test_valid_json_without_claves_requeridas_is_rejected():
-    """El contrato debe rechazar JSON válido pero incompleto."""
-    payload_incompleto = {
-        "choices": [
-            {
-                "message": {
-                    "content": json.dumps({"resumen": "Solo hay resumen"}),
-                }
-            }
-        ]
-    }
-    response = crear_respuesta(payload=payload_incompleto)
+def test_esquema_invalido_o_tipos_incorrectos_returns_schema_validation_error():
+    """El contrato rechaza JSON incompleto y tipos incorrectos (isinstance)."""
+    casos_invalidos = [
+        # 1) Faltan claves requeridas del contrato
+        payload_con_estructurado({"resumen": "Solo hay resumen"}),
+        # 2) `choices` no es una lista (isinstance falla)
+        {"choices": "no-es-una-lista"},
+        # 3) `content` no es una cadena de texto (isinstance falla)
+        {"choices": [{"message": {"content": 12345}}]},
+        # 4) El JSON de `content` no es un diccionario (isinstance falla)
+        {"choices": [{"message": {"content": json.dumps(["no", "es", "dict"])}}]},
+    ]
 
-    with patch("core.http_client.requests.request", return_value=response):
-        result = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=crear_configuracion())
+    for payload_invalido in casos_invalidos:
+        response = crear_respuesta(payload=payload_invalido)
+        with patch("core.http_client.requests.request", return_value=response):
+            result = obtener_datos_api(
+                endpoint=ENDPOINT_PRUEBA,
+                config=crear_configuracion(),
+            )
 
-    # Esta aserción documenta el comportamiento esperado del contrato.
-    assert result["success"] is False
-    assert result["error_type"] == "SchemaValidationError"
+        assert result["success"] is False
+        assert result["error_type"] == "SchemaValidationError"

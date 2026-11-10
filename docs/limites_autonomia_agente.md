@@ -31,6 +31,7 @@ cualquier acción mediante la barrera única `ejecutar_con_autonomia`.
 ## Revisión de trazas
 
 - **Frecuencia:** tras cada ejecución del agente (`python main.py`) y antes de cada entrega. El archivo de trazas es `trazas_agente.jsonl` (artefacto local, ignorado por Git).
+- **Qué se registra (auditoría):** `ejecutar_con_autonomia` escribe una línea por cada acción ejecutada (con su `nivel_riesgo` y resultado) y, para las acciones de riesgo ALTO, una línea adicional con `resultado_aprobacion` (`aprobada`/`denegada`). Así cada decisión, llamada a herramienta y resultado de aprobación queda auditado.
 - **Qué se busca:**
   - Herramientas invocadas con argumentos inesperados (por ejemplo, un endpoint distinto al esperado).
   - Respuestas con `error_type` inesperados (`RateLimitExceeded` repetido → posible bucle de reintentos/cuota).

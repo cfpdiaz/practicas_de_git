@@ -11,9 +11,12 @@ Define, en código, el nivel de riesgo de cada acción antes de ejecutarla:
   externos destructivos y cambios persistentes.
 
 La función ``ejecutar_con_autonomia`` es la barrera única que aplica esta matriz
-antes de ejecutar cualquier acción. Ver ``docs/limites_autonomia_agente.md``.
+antes de ejecutar cualquier acción. Además, **registra en la traza estructurada**
+cada decisión, cada llamada a herramienta y cada resultado de aprobación, para
+cumplir con el requisito de auditoría. Ver ``docs/limites_autonomia_agente.md``.
 """
 
+import json
 from enum import Enum
 from typing import Any, Callable, Dict
 
@@ -62,23 +65,48 @@ def requiere_traza(accion: str) -> bool:
     return nivel_de_accion(accion) in (NivelRiesgo.MEDIO, NivelRiesgo.ALTO)
 
 
+def _resumen(resultado: Any) -> str:
+    """Resumen compacto del resultado de una acción para la traza."""
+    try:
+        return json.dumps(resultado, ensure_ascii=False, default=str)[:500]
+    except (TypeError, ValueError):
+        return str(resultado)[:200]
+
+
 def ejecutar_con_autonomia(accion: str, funcion: Callable[..., Any], *args, **kwargs) -> Any:
     """
     Ejecuta ``funcion`` aplicando la matriz de autonomía de ``accion``.
 
+    Comportamiento por nivel:
     - Bajo: ejecución directa.
     - Medio: ejecución + registro en trazas.
-    - Alto: aprobación humana previa; si se rechaza, devuelve ``AprobacionDenegada``
-      y no ejecuta la acción. Si se aprueba, ejecuta + registra en trazas.
+    - Alto: aprobación humana previa; si se rechaza devuelve ``AprobacionDenegada``
+      y no ejecuta la acción; si se aprueba, ejecuta.
+
+    Auditoría: toda decisión de aprobación y toda llamada a herramienta queda
+    registrada en ``trazas_agente.jsonl`` (independientemente del nivel de riesgo).
     """
+    from core.trazas import registrar_traza
+
     nivel = nivel_de_accion(accion)
 
     if nivel == NivelRiesgo.ALTO:
         from core.seguridad import esperar_aprobacion
 
-        if not esperar_aprobacion(
+        aprobado = esperar_aprobacion(
             f"La acción '{accion}' es de riesgo ALTO (cambio persistente/destructivo)."
-        ):
+        )
+        registrar_traza(
+            entrada=f"acción: {accion}",
+            herramienta=accion,
+            argumentos={
+                "nivel_riesgo": nivel.value,
+                "resultado_aprobacion": "aprobada" if aprobado else "denegada",
+            },
+            observacion="Decisión de aprobación humana.",
+            respuesta_final="aprobada" if aprobado else "denegada",
+        )
+        if not aprobado:
             return {
                 "success": False,
                 "status": "error",
@@ -90,15 +118,12 @@ def ejecutar_con_autonomia(accion: str, funcion: Callable[..., Any], *args, **kw
 
     resultado = funcion(*args, **kwargs)
 
-    if nivel in (NivelRiesgo.MEDIO, NivelRiesgo.ALTO):
-        from core.trazas import registrar_traza
-
-        registrar_traza(
-            entrada=f"acción: {accion}",
-            herramienta=accion,
-            argumentos={"nivel_riesgo": nivel.value},
-            observacion="Acción ejecutada bajo la matriz de autonomía.",
-            respuesta_final=str(resultado)[:200],
-        )
+    registrar_traza(
+        entrada=f"acción: {accion}",
+        herramienta=accion,
+        argumentos={"nivel_riesgo": nivel.value},
+        observacion="Herramienta ejecutada.",
+        respuesta_final=_resumen(resultado),
+    )
 
     return resultado

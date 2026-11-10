@@ -840,10 +840,10 @@ class TestMatrizAutonomia:
         assert requiere_traza("ejecutar_pruebas") is True
         assert requiere_traza("armar_peticion") is False
 
-    def test_bajo_ejecuta_directamente_sin_traza(self):
+    def test_bajo_ejecuta_y_registra_traza(self):
         with patch("core.trazas.registrar_traza") as traza:
             assert ejecutar_con_autonomia("armar_peticion", lambda: 42) == 42
-        traza.assert_not_called()
+        traza.assert_called_once()
 
     def test_medio_ejecuta_y_registra_traza(self):
         with patch("core.trazas.registrar_traza") as traza:
@@ -856,11 +856,12 @@ class TestMatrizAutonomia:
         ) as traza:
             resultado = ejecutar_con_autonomia("test_consistencia", lambda: "no")
         assert resultado["error_type"] == "AprobacionDenegada"
-        traza.assert_not_called()
+        traza.assert_called_once()
+        assert traza.call_args.kwargs["argumentos"]["resultado_aprobacion"] == "denegada"
 
     def test_alto_aprobado_ejecuta_y_registra_traza(self):
         with patch("core.seguridad.esperar_aprobacion", return_value=True), patch(
             "core.trazas.registrar_traza"
         ) as traza:
             assert ejecutar_con_autonomia("test_consistencia", lambda: "ok") == "ok"
-        traza.assert_called_once()
+        assert traza.call_count == 2  # decisión (aprobada) + ejecución

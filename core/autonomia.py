@@ -42,7 +42,7 @@ MATRIZ_AUTONOMIA: Dict[str, NivelRiesgo] = {
     # --- Medio riesgo: registro en trazas ---------------------------------
     "registrar_traza": NivelRiesgo.MEDIO,          # modifica el estado local (traza)
     # --- Alto riesgo: requiere aprobación humana --------------------------
-    "ejecutar_pruebas": NivelRiesgo.ALTO,          # cambio persistente (registro_resultados.json)
+    "ejecutar_pruebas": NivelRiesgo.BAJO,          # solo ejecuta consultas de solo lectura (sin escritura)
     "test_consistencia": NivelRiesgo.ALTO,         # cambio persistente (registro_resultados.json)
     # Ejemplos de acciones ALTO que se agregarían en el futuro:
     #   "eliminar_archivos": NivelRiesgo.ALTO,

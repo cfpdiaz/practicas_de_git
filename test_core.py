@@ -523,6 +523,23 @@ class TestFuncionesApi:
             assert resp.status_code == 200
             assert mock_req.call_count == 1
 
+    def test_enviar_peticion_elimina_authorization_en_host_no_confiable(self):
+        from core.api import Peticion, enviar_peticion
+
+        mock_resp = crear_respuesta_mock(200, payload={"choices": []})
+        cfg = crear_configuracion(clave_api="clave-secreta")
+        peticion = Peticion(
+            url="https://evil.example/v1/chat",
+            headers={"Authorization": "Bearer clave-secreta", "Accept": "application/json"},
+            payload={"test": True},
+        )
+        with patch("core.api.requests.request", return_value=mock_resp) as mock_req:
+            enviar_peticion(peticion, config=cfg)
+            headers_enviados = mock_req.call_args.kwargs["headers"]
+            assert "Authorization" not in headers_enviados
+            assert "authorization" not in headers_enviados
+            assert headers_enviados["Accept"] == "application/json"
+
     def test_extraer_texto_desde_response_y_dict(self):
         from core.api import extraer_texto
 
@@ -766,16 +783,22 @@ class TestResiliencia:
 
 class TestAprobacionHumana:
     def test_respuesta_afirmativa_aprueba(self):
-        with patch("builtins.input", return_value="si"):
+        with patch("sys.stdin.isatty", return_value=True), patch(
+            "builtins.input", return_value="si"
+        ):
             assert esperar_aprobacion("¿Continuar?") is True
 
     def test_respuesta_negativa_rechaza(self):
-        with patch("builtins.input", return_value="no"):
+        with patch("sys.stdin.isatty", return_value=True), patch(
+            "builtins.input", return_value="no"
+        ):
             assert esperar_aprobacion("¿Continuar?") is False
 
     def test_variantes_afirmativas(self):
         for respuesta in ("SI", "sí", "s", "yes", "y"):
-            with patch("builtins.input", return_value=respuesta):
+            with patch("sys.stdin.isatty", return_value=True), patch(
+                "builtins.input", return_value=respuesta
+            ):
                 assert esperar_aprobacion("¿Continuar?") is True
 
     def test_timeout_rechaza_por_inactividad(self):
@@ -783,6 +806,20 @@ class TestAprobacionHumana:
             "select.select", return_value=([], [], [])
         ), patch("builtins.input") as entrada:
             assert esperar_aprobacion("¿Continuar?", segundos_timeout=5.0) is False
+            entrada.assert_not_called()
+
+    def test_sin_terminal_interactiva_deniega(self):
+        with patch("sys.stdin.isatty", return_value=False), patch(
+            "builtins.input"
+        ) as entrada:
+            assert esperar_aprobacion("¿Continuar?") is False
+            entrada.assert_not_called()
+
+    def test_autorizar_alto_env_autoaprueba(self):
+        with patch.dict("os.environ", {"AUTORIZAR_ALTO": "1"}), patch(
+            "builtins.input"
+        ) as entrada:
+            assert esperar_aprobacion("¿Continuar?") is True
             entrada.assert_not_called()
 
     def test_llamada_real_denegada_no_llama_a_la_api(self):
@@ -827,7 +864,7 @@ class TestMatrizAutonomia:
         assert MATRIZ_AUTONOMIA["armar_peticion"] == NivelRiesgo.BAJO
         assert MATRIZ_AUTONOMIA["obtener_datos_api"] == NivelRiesgo.BAJO
         assert MATRIZ_AUTONOMIA["registrar_traza"] == NivelRiesgo.MEDIO
-        assert MATRIZ_AUTONOMIA["ejecutar_pruebas"] == NivelRiesgo.ALTO
+        assert MATRIZ_AUTONOMIA["ejecutar_pruebas"] == NivelRiesgo.BAJO
         assert MATRIZ_AUTONOMIA["test_consistencia"] == NivelRiesgo.ALTO
 
     def test_accion_desconocida_es_alto(self):
@@ -837,7 +874,7 @@ class TestMatrizAutonomia:
         assert requiere_aprobacion("test_consistencia") is True
         assert requiere_aprobacion("obtener_datos_api") is False
         assert requiere_traza("registrar_traza") is True
-        assert requiere_traza("ejecutar_pruebas") is True
+        assert requiere_traza("ejecutar_pruebas") is False
         assert requiere_traza("armar_peticion") is False
 
     def test_bajo_ejecuta_y_registra_traza(self):

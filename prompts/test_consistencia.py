@@ -21,8 +21,9 @@ RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 if str(RAIZ_PROYECTO) not in sys.path:
     sys.path.insert(0, str(RAIZ_PROYECTO))
 
-from app import obtener_datos_api
-from prompts.banco import BANCO_DE_PROMPTS
+from app import obtener_datos_api  # noqa: E402
+from core.autonomia import ejecutar_con_autonomia  # noqa: E402
+from prompts.banco import BANCO_DE_PROMPTS  # noqa: E402
 
 ITERACIONES_POR_PROMPT = 3
 RUTA_REGISTRO_RESULTADOS = RAIZ_PROYECTO / "prompts" / "registro_resultados.json"
@@ -213,10 +214,18 @@ def ejecutar_pruebas_consistencia() -> int:
         "detalle_por_prompt": detalle_prompts,
     }
 
-    # Guardar automáticamente en prompts/registro_resultados.json
-    RUTA_REGISTRO_RESULTADOS.parent.mkdir(parents=True, exist_ok=True)
-    with open(RUTA_REGISTRO_RESULTADOS, "w", encoding="utf-8") as f:
-        json.dump(registro_final, f, indent=2, ensure_ascii=False)
+    # Guardar automáticamente en prompts/registro_resultados.json.
+    # Escritura persistente (riesgo ALTO): pasa por la barrera de autonomía.
+    def _escribir_registro() -> bool:
+        RUTA_REGISTRO_RESULTADOS.parent.mkdir(parents=True, exist_ok=True)
+        with open(RUTA_REGISTRO_RESULTADOS, "w", encoding="utf-8") as f:
+            json.dump(registro_final, f, indent=2, ensure_ascii=False)
+        return True
+
+    resultado_guard = ejecutar_con_autonomia("test_consistencia", _escribir_registro)
+    if isinstance(resultado_guard, dict) and resultado_guard.get("error_type") == "AprobacionDenegada":
+        print("\n[!] Escritura de evidencia rechazada: se requiere aprobación humana.", file=sys.stderr)
+        return 1
 
     print("\n" + "=" * 65)
     print(" RESUMEN GENERAL DE CONSISTENCIA")

@@ -220,6 +220,16 @@ def enviar_peticion(
         )
         return RespuestaSimulada(data=sim_result["data"], status_code=200, url=url)
 
+    # Anti-exfiltración: nunca enviar credenciales a un host no confiable, aunque
+    # las cabeceras hayan llegado pre-construidas (defensa en profundidad).
+    es_relativa_url = not url.startswith(("http://", "https://"))
+    if not cfg.es_url_confiable(url, es_relativa_url):
+        cabeceras_peticion = {
+            clave: valor
+            for clave, valor in (cabeceras_peticion or {}).items()
+            if clave.lower() != "authorization"
+        }
+
     return requests.request(
         method=method,
         url=url,

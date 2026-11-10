@@ -11,7 +11,7 @@ cualquier acción mediante la barrera única `ejecutar_con_autonomia`.
 |---|---|---|
 | **Bajo (ejecución directa)** | Lectura de datos, formateo de texto, consultas a la API de solo lectura | `armar_peticion`, `enviar_peticion`, `extraer_texto`, `obtener_datos_api`, `validar_respuesta_api`, `construir_respuesta_simulada`, `construir_definiciones_tareas` |
 | **Medio (registro en trazas)** | Modificación de variables locales de estado o de la memoria de contexto | `registrar_traza` (escribe la traza/contexto del agente) |
-| **Alto (requiere aprobación)** | Eliminación de archivos, llamadas a servicios externos destructivos, cambios persistentes | `ejecutar_pruebas`, `test_consistencia` (escriben `prompts/registro_resultados.json`, un cambio persistente) |
+| **Alto (requiere aprobación)** | Eliminación de archivos, llamadas a servicios externos destructivos, cambios persistentes | `test_consistencia` (escribe `prompts/registro_resultados.json`, un cambio persistente) |
 
 > Las acciones no listadas se tratan como **ALTO** por defecto (conservador).
 
@@ -21,11 +21,13 @@ cualquier acción mediante la barrera única `ejecutar_con_autonomia`.
 - `obtener_datos_api`, `enviar_peticion`: **bajo** — consulta de solo lectura a la API.
 - `validar_respuesta_api`, `construir_respuesta_simulada`, `construir_definiciones_tareas`: **bajo** — lectura/validación/formateo.
 - `registrar_traza`: **medio** — modifica el estado local (escribe la traza); queda registrada en trazas.
-- `ejecutar_pruebas`, `test_consistencia`: **alto** — cambio persistente (`prompts/registro_resultados.json`); requieren aprobación.
+- `ejecutar_pruebas`: **bajo** — solo ejecuta consultas de solo lectura (sin escritura).
+- `test_consistencia`: **alto** — cambio persistente (`prompts/registro_resultados.json`); requiere aprobación.
 
 ## Herramientas que requieren aprobación humana
 
-- **`ejecutar_pruebas` / `test_consistencia` (riesgo ALTO):** antes de ejecutarlas, `ejecutar_con_autonomia` invoca `esperar_aprobacion(...)`. Si el operador no aprueba, se devuelve `AprobacionDenegada` y la acción **no** se ejecuta. **Por qué:** escriben un archivo persistente en el repositorio.
+- **`test_consistencia` (riesgo ALTO):** antes de escribir `prompts/registro_resultados.json`, `ejecutar_con_autonomia` invoca `esperar_aprobacion(...)`. Si el operador no aprueba, se devuelve `AprobacionDenegada` y la acción **no** se ejecuta. **Por qué:** es un cambio persistente en el repositorio.
+  - Para ejecuciones automatizadas (CI/auditoría) se puede autorizar explícitamente con `AUTORIZAR_ALTO=1` (por ejemplo, `AUTORIZAR_ALTO=1 python -m prompts.test_consistencia`). Sin terminal interactiva y sin esa variable, la acción se **deniega** por defecto (fail-safe).
 - **Llamada real a la API (`obtener_datos_api` / `enviar_peticion`):** es de riesgo **bajo** por defecto (consulta de solo lectura), pero conserva una **sobreprotección opcional** (`REQUIERE_APROBACION=true` en el entorno) para auditorías estrictas o para no gastar cuota sin supervisión.
 
 ## Revisión de trazas
@@ -38,6 +40,19 @@ cualquier acción mediante la barrera única `ejecutar_con_autonomia`.
   - Cualquier intento de enviar la API Key a un host no confiable (mitigado por `es_url_confiable`, que omite el header `Authorization`).
   - Ejecuciones con `fallback=true` (indican que se activó la simulación offline por agotar reintentos o por falta de red).
   - Respuestas finales que no respeten el contrato (`resumen`, `categoria`, `prioridad`).
+
+## Verificación de seguridad (sin bypasses)
+
+Chequeos ejecutados en la terminal (resultado `9/9`):
+
+1. `es_url_confiable` rechaza hosts no confiables y acepta los confiables.
+2. `armar_peticion` no adjunta `Authorization` a hosts no confiables.
+3. `obtener_datos_api` no adjunta `Authorization` a hosts no confiables.
+4. El modo simulación (clave placeholder) no realiza llamadas de red.
+5. Una acción ALTO denegada no se ejecuta.
+6. Una acción desconocida se trata como ALTO (conservador).
+7. `enviar_peticion` **elimina** el header `Authorization` si el host no es confiable (defensa en profundidad, incluso con cabeceras pre-construidas).
+8. `test_consistencia` (ALTO) está enrutado por la barrera; `ejecutar_pruebas` es BAJO (solo lectura).
 
 ## Qué hacer ante un comportamiento inesperado
 

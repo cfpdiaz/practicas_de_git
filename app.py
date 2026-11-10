@@ -18,6 +18,7 @@ from core.api import (
     RespuestaSimulada,
 )
 from core.schemas import PRIORIDADES_PERMITIDAS, CLAVES_REQUERIDAS
+from core.resiliencia import MAX_REINTENTOS, clasificar_error, calcular_espera
 from core.tasks import construir_definiciones_tareas
 from core.cli import ejecutar_pruebas, main
 
@@ -45,6 +46,9 @@ __all__ = [
     "construir_definiciones_tareas",
     "PRIORIDADES_PERMITIDAS",
     "CLAVES_REQUERIDAS",
+    "MAX_REINTENTOS",
+    "clasificar_error",
+    "calcular_espera",
     "URL_BASE_API",
     "CLAVE_API",
     "SEGUNDOS_TIMEOUT",

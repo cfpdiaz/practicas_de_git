@@ -1,13 +1,15 @@
 """
-core.http_client - Cliente HTTP con manejo estructurado de excepciones.
+core.http_client - Cliente HTTP con manejo estructurado de excepciones,
+reintentos con backoff exponencial y fallback a simulación offline.
 
-Encapsula la construcción de URL/headers/payload, la petición HTTP vía requests
-y la traducción de excepciones a diccionarios de resultado.
+Encapsula la construcción de URL/headers/payload, la petición HTTP vía
+``requests``, la traducción de excepciones a diccionarios de resultado y la
+política de tolerancia a fallos (ver ``docs/tolerancia_fallos.md``).
 """
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import requests
 from requests.exceptions import (
@@ -19,7 +21,9 @@ from requests.exceptions import (
 )
 
 from core.config import ConfiguracionApp
+from core.resiliencia import clasificar_error, ejecutar_con_reintentos
 from core.schemas import validar_respuesta_api
+from core.simulation import construir_respuesta_simulada
 
 MENSAJE_USUARIO_POR_DEFECTO = (
     "El servidor de base de datos en producción está experimentando una sobrecarga "
@@ -36,7 +40,7 @@ INSTRUCCION_SISTEMA_POR_DEFECTO = (
 
 
 class ClienteHttp:
-    """Cliente HTTP para consumo de API de IA Generativa."""
+    """Cliente HTTP para consumo de API de IA Generativa con resiliencia."""
 
     def __init__(self, config: ConfiguracionApp):
         self.config = config
@@ -52,11 +56,20 @@ class ClienteHttp:
         verificar_ssl: Optional[bool] = None,
         instruccion_sistema: Optional[str] = None,
         claves_requeridas: Optional[set[str]] = None,
+        max_reintentos: Optional[int] = None,
+        dormir: Optional[Callable[[float], None]] = None,
+        fallback_offline: bool = True,
     ) -> Dict[str, Any]:
         """
         Realiza una petición HTTP y devuelve una respuesta estructurada.
 
-        No gestiona el modo simulación: ese chequeo ocurre antes de instanciar el cliente.
+        Aplica reintentos con backoff exponencial a los errores transitorios
+        (Timeout, HTTP 429, HTTP 500/503) y, si se agotan o falla la red,
+        activa el modo de contingencia offline cuando ``fallback_offline`` es
+        True (degradación suave).
+
+        No gestiona el modo simulación por clave placeholder: ese chequeo
+        ocurre antes de instanciar el cliente (ver ``core.api``).
         """
         timeout_efectivo = timeout if timeout is not None else self.config.segundos_timeout
         verificacion_efectiva = verificar_ssl if verificar_ssl is not None else self.config.verificar_ssl
@@ -87,6 +100,56 @@ class ClienteHttp:
                 "response_format": {"type": "json_object"},
             }
 
+        def intentar() -> Dict[str, Any]:
+            return self._intentar(
+                method=method,
+                url=url,
+                params=params,
+                payload=payload,
+                headers=headers,
+                timeout=timeout_efectivo,
+                verificar=verificacion_efectiva,
+                claves_requeridas=claves_requeridas,
+                payload_personalizado=payload_personalizado,
+                sistema_personalizado=sistema_personalizado,
+            )
+
+        argumentos_reintento: Dict[str, Any] = {}
+        if max_reintentos is not None:
+            argumentos_reintento["max_reintentos"] = max_reintentos
+        if dormir is not None:
+            argumentos_reintento["dormir"] = dormir
+
+        resultado = ejecutar_con_reintentos(intentar, **argumentos_reintento)
+
+        # Fallback: degradación suave ante fallos transitorios agotados o sin red
+        if fallback_offline and clasificar_error(resultado) in ("reintentable", "red"):
+            return self._respuesta_fallback(
+                resultado_error=resultado,
+                url=url,
+                mensaje_usuario=mensaje_usuario,
+                instruccion_sistema=instruccion_sistema,
+                claves_requeridas=claves_requeridas,
+                payload=payload,
+            )
+
+        return resultado
+
+    def _intentar(
+        self,
+        *,
+        method: str,
+        url: str,
+        params: Optional[Dict[str, Any]],
+        payload: Optional[Dict[str, Any]],
+        headers: Dict[str, str],
+        timeout: float,
+        verificar: bool,
+        claves_requeridas: Optional[set[str]],
+        payload_personalizado: bool,
+        sistema_personalizado: bool,
+    ) -> Dict[str, Any]:
+        """Ejecuta un único intento y traduce las excepciones a dicts de error."""
         marca_tiempo_actual = datetime.now(timezone.utc).isoformat()
         response: Optional[requests.Response] = None
 
@@ -97,8 +160,8 @@ class ClienteHttp:
                 params=params,
                 json=payload,
                 headers=headers,
-                timeout=timeout_efectivo,
-                verify=verificacion_efectiva,
+                timeout=timeout,
+                verify=verificar,
             )
 
             # Dispara HTTPError para códigos de estado 4xx y 5xx
@@ -125,7 +188,7 @@ class ClienteHttp:
                 "status_code": None,
                 "url": url,
                 "timestamp": marca_tiempo_actual,
-                "message": f"La petición excedió el tiempo límite ({timeout_efectivo} segundos).",
+                "message": f"La petición excedió el tiempo límite ({timeout} segundos).",
                 "details": str(err),
             }
 
@@ -192,3 +255,32 @@ class ClienteHttp:
                 "message": "Ocurrió una excepción general de requests al procesar la petición.",
                 "details": str(err),
             }
+
+    def _respuesta_fallback(
+        self,
+        *,
+        resultado_error: Dict[str, Any],
+        url: str,
+        mensaje_usuario: str,
+        instruccion_sistema: Optional[str],
+        claves_requeridas: Optional[set[str]],
+        payload: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Devuelve una respuesta simulada (degradación suave) tras fallos."""
+        fallback = construir_respuesta_simulada(
+            config=self.config,
+            url=url,
+            mensaje_usuario=mensaje_usuario,
+            instruccion_sistema=instruccion_sistema,
+            claves_requeridas=claves_requeridas,
+            payload=payload,
+        )
+        fallback["fallback"] = True
+        fallback["degradado"] = True
+        fallback["error_original"] = resultado_error.get("error_type")
+        fallback["message"] = (
+            "Modo de contingencia offline activado tras "
+            f"{resultado_error.get('error_type')}; se devuelve una respuesta "
+            "simulada para no interrumpir el pipeline."
+        )
+        return fallback

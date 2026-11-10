@@ -119,6 +119,8 @@ def test_obtener_datos_api_timeout_is_returned_as_error():
             endpoint=ENDPOINT_PRUEBA,
             timeout=1.25,
             config=crear_configuracion(),
+            max_reintentos=0,
+            fallback_offline=False,
         )
 
     assert result["success"] is False
@@ -137,7 +139,12 @@ def test_obtener_datos_api_rate_limit_includes_retry_after_header():
     )
 
     with patch("core.http_client.requests.request", return_value=response) as request:
-        result = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=crear_configuracion())
+        result = obtener_datos_api(
+            endpoint=ENDPOINT_PRUEBA,
+            config=crear_configuracion(),
+            max_reintentos=0,
+            fallback_offline=False,
+        )
 
     assert result["success"] is False
     assert result["error_type"] == "RateLimitExceeded"
@@ -154,7 +161,12 @@ def test_obtener_datos_api_invalid_json_returns_json_decode_error():
     )
 
     with patch("core.http_client.requests.request", return_value=response) as request:
-        result = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=crear_configuracion())
+        result = obtener_datos_api(
+            endpoint=ENDPOINT_PRUEBA,
+            config=crear_configuracion(),
+            max_reintentos=0,
+            fallback_offline=False,
+        )
 
     assert result["success"] is False
     assert result["error_type"] == "JSONDecodeError"
@@ -169,7 +181,12 @@ def test_obtener_datos_api_connection_error_is_returned():
         "core.http_client.requests.request",
         side_effect=requests.exceptions.ConnectionError("DNS failure"),
     ) as request:
-        result = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=crear_configuracion())
+        result = obtener_datos_api(
+            endpoint=ENDPOINT_PRUEBA,
+            config=crear_configuracion(),
+            max_reintentos=0,
+            fallback_offline=False,
+        )
 
     assert result["success"] is False
     assert result["error_type"] == "ConnectionError"

@@ -15,6 +15,14 @@ from core.config import ConfiguracionApp, cargar_configuracion, config, es_url_c
 from core.schemas import PRIORIDADES_PERMITIDAS, CLAVES_REQUERIDAS, validar_respuesta_api
 from core.simulation import construir_respuesta_simulada, es_modo_simulacion
 from core.http_client import ClienteHttp
+from core.resiliencia import (
+    MAX_REINTENTOS,
+    RETRASO_INICIAL,
+    FACTOR_BACKOFF,
+    clasificar_error,
+    calcular_espera,
+    ejecutar_con_reintentos,
+)
 from core.api import (
     Peticion,
     RespuestaSimulada,
@@ -37,6 +45,12 @@ __all__ = [
     "construir_respuesta_simulada",
     "es_modo_simulacion",
     "ClienteHttp",
+    "MAX_REINTENTOS",
+    "RETRASO_INICIAL",
+    "FACTOR_BACKOFF",
+    "clasificar_error",
+    "calcular_espera",
+    "ejecutar_con_reintentos",
     "Peticion",
     "RespuestaSimulada",
     "armar_peticion",

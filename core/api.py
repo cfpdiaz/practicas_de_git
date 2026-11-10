@@ -9,7 +9,7 @@ Provee las funciones requeridas por la rúbrica del curso:
 """
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import requests
 
@@ -291,6 +291,9 @@ def obtener_datos_api(
     instruccion_sistema: Optional[str] = None,
     claves_requeridas: Optional[set[str]] = None,
     config: Optional[ConfiguracionApp] = None,
+    max_reintentos: Optional[int] = None,
+    dormir: Optional[Callable[[float], None]] = None,
+    fallback_offline: bool = True,
 ) -> Dict[str, Any]:
     """
     Realiza una petición a la API y devuelve una respuesta estructurada.
@@ -306,6 +309,9 @@ def obtener_datos_api(
         instruccion_sistema: Instrucción de sistema personalizada.
         claves_requeridas: Claves requeridas para validación del contrato.
         config: Configuración inyectable (por defecto usa la global).
+        max_reintentos: Número máximo de reintentos con backoff (por defecto 3).
+        dormir: Función de espera inyectable (por defecto ``time.sleep``).
+        fallback_offline: Activa la simulación offline si se agotan los reintentos.
 
     Returns:
         Dict con respuesta estructurada.
@@ -338,4 +344,7 @@ def obtener_datos_api(
         verificar_ssl=verificar_ssl,
         instruccion_sistema=instruccion_sistema,
         claves_requeridas=claves_requeridas,
+        max_reintentos=max_reintentos,
+        dormir=dormir,
+        fallback_offline=fallback_offline,
     )

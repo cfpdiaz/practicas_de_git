@@ -19,6 +19,14 @@ from core.simulation import (
     construir_respuesta_simulada,
     es_modo_simulacion,
 )
+from core.resiliencia import (
+    FACTOR_BACKOFF,
+    MAX_REINTENTOS,
+    RETRASO_INICIAL,
+    calcular_espera,
+    clasificar_error,
+    ejecutar_con_reintentos,
+)
 from core.tasks import construir_definiciones_tareas
 
 
@@ -107,7 +115,10 @@ class TestGenerarEstructuradoSimulado:
     def test_incidente_template(self):
         result = _generar_estructurado_simulado("x", claves_requeridas={"resumen", "categoria", "prioridad"})
         assert result == {
-            "resumen": "Sobrecarga crítica de CPU (98%) en el servidor de base de datos en producción afectando la latencia de los usuarios.",
+            "resumen": (
+                "Sobrecarga crítica de CPU (98%) en el servidor de base de datos en producción "
+                "afectando la latencia de los usuarios."
+            ),
             "categoria": "Infraestructura",
             "prioridad": "alta",
         }
@@ -143,13 +154,21 @@ class TestGenerarEstructuradoSimulado:
 
 class TestEsModoSimulacion:
     def test_placeholder_key_activates(self):
-        assert es_modo_simulacion(crear_configuracion(clave_api="tu_groq_clave_api_aqui"), "https://api.groq.com/v1", 10.0) is True
+        assert es_modo_simulacion(
+            crear_configuracion(clave_api="tu_groq_clave_api_aqui"),
+            "https://api.groq.com/v1",
+            10.0,
+        ) is True
 
     def test_none_key_activates(self):
         assert es_modo_simulacion(crear_configuracion(clave_api=None), "https://api.groq.com/v1", 10.0) is True
 
     def test_real_key_deactivates(self):
-        assert es_modo_simulacion(crear_configuracion(clave_api="gsk_real_key"), "https://api.groq.com/v1", 10.0) is False
+        assert es_modo_simulacion(
+            crear_configuracion(clave_api="gsk_real_key"),
+            "https://api.groq.com/v1",
+            10.0,
+        ) is False
 
     def test_httpbin_deactivates(self):
         assert es_modo_simulacion(crear_configuracion(clave_api=None), "https://httpbin.org/status/429", 10.0) is False
@@ -261,7 +280,12 @@ class TestClienteHttpRamasError:
             "500 Server Error", response=response
         )
         with patch("core.http_client.requests.request", return_value=response):
-            result = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=crear_configuracion())
+            result = obtener_datos_api(
+                endpoint=ENDPOINT_PRUEBA,
+                config=crear_configuracion(),
+                max_reintentos=0,
+                fallback_offline=False,
+            )
         assert result["error_type"] == "HTTPError"
         assert result["status_code"] == 500
 
@@ -591,3 +615,137 @@ class TestFuncionesApi:
         with pytest.raises(ValueError):
             extraer_texto(mock_bad)
 
+
+# --------------------------------------------------------------------------- #
+# Resiliencia: clasificación, reintentos y fallback (Bloque 20)
+# --------------------------------------------------------------------------- #
+
+class TestResiliencia:
+    def test_parametros_de_reintentos(self):
+        assert MAX_REINTENTOS == 3
+        assert RETRASO_INICIAL == 2.0
+        assert FACTOR_BACKOFF == 2.0
+
+    def test_clasificar_ok(self):
+        assert clasificar_error({"success": True}) == "ok"
+
+    def test_clasificar_reintentable(self):
+        assert clasificar_error({"success": False, "error_type": "Timeout"}) == "reintentable"
+        assert clasificar_error(
+            {"success": False, "error_type": "RateLimitExceeded", "status_code": 429}
+        ) == "reintentable"
+        for estado in (500, 503):
+            assert clasificar_error(
+                {"success": False, "error_type": "HTTPError", "status_code": estado}
+            ) == "reintentable"
+
+    def test_clasificar_fatal(self):
+        for estado in (401, 403, 404):
+            assert clasificar_error(
+                {"success": False, "error_type": "HTTPError", "status_code": estado}
+            ) == "fatal"
+
+    def test_clasificar_estructura_y_red(self):
+        assert clasificar_error(
+            {"success": False, "error_type": "JSONDecodeError"}
+        ) == "estructura"
+        assert clasificar_error(
+            {"success": False, "error_type": "SchemaValidationError"}
+        ) == "estructura"
+        assert clasificar_error(
+            {"success": False, "error_type": "ConnectionError"}
+        ) == "red"
+
+    def test_calcular_espera_exponencial(self):
+        assert calcular_espera(1) == 2.0
+        assert calcular_espera(2) == 4.0
+        assert calcular_espera(3) == 8.0
+
+    def test_ejecutar_con_reintentos_respeta_backoff(self):
+        esperas = []
+        resultados = [
+            {"success": False, "error_type": "Timeout"},
+            {"success": False, "error_type": "Timeout"},
+            {"success": True},
+        ]
+
+        def accion():
+            return resultados.pop(0)
+
+        resultado = ejecutar_con_reintentos(accion, dormir=esperas.append, max_reintentos=2)
+        assert resultado["success"] is True
+        assert esperas == [2.0, 4.0]
+
+    def test_reintentos_y_ventana_de_error(self):
+        esperas = []
+        payload = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {"resumen": "x", "categoria": "y", "prioridad": "alta"}
+                        )
+                    }
+                }
+            ]
+        }
+        respuesta = crear_respuesta_mock(200, payload)
+        efectos = [
+            requests.exceptions.Timeout("t1"),
+            requests.exceptions.Timeout("t2"),
+            respuesta,
+        ]
+        with patch("core.http_client.requests.request", side_effect=efectos) as request:
+            resultado = obtener_datos_api(
+                endpoint=ENDPOINT_PRUEBA,
+                config=crear_configuracion(),
+                max_reintentos=2,
+                dormir=esperas.append,
+                fallback_offline=False,
+            )
+        assert resultado["success"] is True
+        assert request.call_count == 3
+        assert esperas == [2.0, 4.0]
+
+    def test_fallback_simulado_al_agotar_reintentos(self):
+        esperas = []
+        with patch(
+            "core.http_client.requests.request",
+            side_effect=requests.exceptions.Timeout("sin red"),
+        ) as request:
+            resultado = obtener_datos_api(
+                endpoint=ENDPOINT_PRUEBA,
+                config=crear_configuracion(),
+                max_reintentos=2,
+                dormir=esperas.append,
+                fallback_offline=True,
+            )
+        assert resultado["success"] is True
+        assert resultado["fallback"] is True
+        assert resultado["degradado"] is True
+        assert resultado["error_original"] == "Timeout"
+        assert "structured_output" in resultado
+        assert request.call_count == 3
+        assert esperas == [2.0, 4.0]
+
+    def test_error_fatal_no_reintenta_ni_fallback(self):
+        response = Mock()
+        response.status_code = 401
+        response.headers = {}
+        response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "401 Unauthorized", response=response
+        )
+        esperas = []
+        with patch("core.http_client.requests.request", return_value=response) as request:
+            resultado = obtener_datos_api(
+                endpoint=ENDPOINT_PRUEBA,
+                config=crear_configuracion(),
+                dormir=esperas.append,
+                fallback_offline=True,
+            )
+        assert resultado["success"] is False
+        assert resultado["error_type"] == "HTTPError"
+        assert resultado["status_code"] == 401
+        assert "fallback" not in resultado
+        assert esperas == []
+        request.assert_called_once()

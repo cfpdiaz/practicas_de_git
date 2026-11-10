@@ -1,24 +1,32 @@
 # Límites de Autonomía: Agente de Clasificación de Incidentes (pipeline de IA)
 
 Este documento describe los límites de autonomía del agente implementado en este
-repositorio (`main.py` + paquete `core/`). El agente consume una API de IA
-Generativa y devuelve un JSON estructurado en español; **no mueve dinero ni
-modifica datos externos**, por lo que no existe una herramienta de riesgo alto
-(escritura irreversible con impacto económico).
+repositorio (`main.py` + paquete `core/`). La **matriz de autonomía** está definida
+en código en `core/autonomia.py` (`MATRIZ_AUTONOMIA`) y se aplica antes de ejecutar
+cualquier acción mediante la barrera única `ejecutar_con_autonomia`.
 
-## Herramientas y nivel de riesgo
+## Matriz de autonomía (definida en código)
 
-- `armar_peticion`: **bajo** — solo construye URL, cabeceras y payload; no tiene efectos externos.
-- `extraer_texto`: **bajo** — solo parsea la respuesta; no tiene efectos externos.
-- `obtener_datos_api` / `enviar_peticion` (llamada a la API): **medio** — realiza una petición HTTP a la API de IA; consume cuota (impacto económico), aunque una petición individual no es irreversible.
-- `ejecutar_pruebas` / `test_consistencia`: **medio** — escribe `prompts/registro_resultados.json` (escritura **reversible** vía control de versiones).
-- `es_url_confiable`, `es_modo_simulacion`, `clasificar_error` y el reintento con backoff: **bajo** — son defensas internas de seguridad/resiliencia; no ejecutan acciones externas.
+| Nivel | Criterio | Acciones del proyecto |
+|---|---|---|
+| **Bajo (ejecución directa)** | Lectura de datos, formateo de texto, consultas a la API de solo lectura | `armar_peticion`, `enviar_peticion`, `extraer_texto`, `obtener_datos_api`, `validar_respuesta_api`, `construir_respuesta_simulada`, `construir_definiciones_tareas` |
+| **Medio (registro en trazas)** | Modificación de variables locales de estado o de la memoria de contexto | `registrar_traza` (escribe la traza/contexto del agente) |
+| **Alto (requiere aprobación)** | Eliminación de archivos, llamadas a servicios externos destructivos, cambios persistentes | `ejecutar_pruebas`, `test_consistencia` (escriben `prompts/registro_resultados.json`, un cambio persistente) |
+
+> Las acciones no listadas se tratan como **ALTO** por defecto (conservador).
+
+## Herramientas y nivel de riesgo (detalle)
+
+- `armar_peticion`, `extraer_texto`: **bajo** — construyen/parsean sin efectos externos.
+- `obtener_datos_api`, `enviar_peticion`: **bajo** — consulta de solo lectura a la API.
+- `validar_respuesta_api`, `construir_respuesta_simulada`, `construir_definiciones_tareas`: **bajo** — lectura/validación/formateo.
+- `registrar_traza`: **medio** — modifica el estado local (escribe la traza); queda registrada en trazas.
+- `ejecutar_pruebas`, `test_consistencia`: **alto** — cambio persistente (`prompts/registro_resultados.json`); requieren aprobación.
 
 ## Herramientas que requieren aprobación humana
 
-- **Llamada real a la API (`obtener_datos_api` / `enviar_peticion`)**: requiere aprobación humana cuando está activada la opción `REQUIERE_APROBACION=true` (por defecto `false`, para permitir la automatización y la auditoría offline).
-  - **Por qué:** es la única acción con impacto económico real (consumo de cuota del proveedor). Por eso es la única candidata a una barrera de confirmación; el resto de las herramientas son de solo lectura o de escritura reversible y no necesitan aprobación.
-  - **Cómo:** antes de enviar la petición, `core/api.py` invoca `esperar_aprobacion(...)` (confirmación con límite de tiempo). Si el operador no aprueba, la llamada se cancela y se devuelve el error controlado `AprobacionDenegada`.
+- **`ejecutar_pruebas` / `test_consistencia` (riesgo ALTO):** antes de ejecutarlas, `ejecutar_con_autonomia` invoca `esperar_aprobacion(...)`. Si el operador no aprueba, se devuelve `AprobacionDenegada` y la acción **no** se ejecuta. **Por qué:** escriben un archivo persistente en el repositorio.
+- **Llamada real a la API (`obtener_datos_api` / `enviar_peticion`):** es de riesgo **bajo** por defecto (consulta de solo lectura), pero conserva una **sobreprotección opcional** (`REQUIERE_APROBACION=true` en el entorno) para auditorías estrictas o para no gastar cuota sin supervisión.
 
 ## Revisión de trazas
 

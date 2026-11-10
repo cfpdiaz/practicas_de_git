@@ -31,6 +31,14 @@ from core.api import (
     extraer_texto,
     obtener_datos_api,
 )
+from core.autonomia import (
+    MATRIZ_AUTONOMIA,
+    NivelRiesgo,
+    ejecutar_con_autonomia,
+    nivel_de_accion,
+    requiere_aprobacion,
+    requiere_traza,
+)
 from core.tasks import construir_definiciones_tareas
 from core.seguridad import esperar_aprobacion
 from core.trazas import ARCHIVO_TRAZAS, registrar_traza
@@ -53,6 +61,12 @@ __all__ = [
     "clasificar_error",
     "calcular_espera",
     "ejecutar_con_reintentos",
+    "MATRIZ_AUTONOMIA",
+    "NivelRiesgo",
+    "ejecutar_con_autonomia",
+    "nivel_de_accion",
+    "requiere_aprobacion",
+    "requiere_traza",
     "Peticion",
     "RespuestaSimulada",
     "armar_peticion",

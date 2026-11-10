@@ -12,6 +12,14 @@ import pytest
 import requests
 
 from core.api import obtener_datos_api
+from core.autonomia import (
+    MATRIZ_AUTONOMIA,
+    NivelRiesgo,
+    ejecutar_con_autonomia,
+    nivel_de_accion,
+    requiere_aprobacion,
+    requiere_traza,
+)
 from core.config import ConfiguracionApp, cargar_configuracion
 from core.schemas import validar_respuesta_api
 from core.simulation import (
@@ -808,3 +816,51 @@ class TestAprobacionHumana:
             resultado = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=cfg)
         assert resultado["success"] is True
         request.assert_called_once()
+
+
+# --------------------------------------------------------------------------- #
+# Matriz de autonomía (Bloque 23)
+# --------------------------------------------------------------------------- #
+
+class TestMatrizAutonomia:
+    def test_matriz_clasifica_acciones_clave(self):
+        assert MATRIZ_AUTONOMIA["armar_peticion"] == NivelRiesgo.BAJO
+        assert MATRIZ_AUTONOMIA["obtener_datos_api"] == NivelRiesgo.BAJO
+        assert MATRIZ_AUTONOMIA["registrar_traza"] == NivelRiesgo.MEDIO
+        assert MATRIZ_AUTONOMIA["ejecutar_pruebas"] == NivelRiesgo.ALTO
+        assert MATRIZ_AUTONOMIA["test_consistencia"] == NivelRiesgo.ALTO
+
+    def test_accion_desconocida_es_alto(self):
+        assert nivel_de_accion("accion_desconocida") == NivelRiesgo.ALTO
+
+    def test_predicados_de_riesgo(self):
+        assert requiere_aprobacion("test_consistencia") is True
+        assert requiere_aprobacion("obtener_datos_api") is False
+        assert requiere_traza("registrar_traza") is True
+        assert requiere_traza("ejecutar_pruebas") is True
+        assert requiere_traza("armar_peticion") is False
+
+    def test_bajo_ejecuta_directamente_sin_traza(self):
+        with patch("core.trazas.registrar_traza") as traza:
+            assert ejecutar_con_autonomia("armar_peticion", lambda: 42) == 42
+        traza.assert_not_called()
+
+    def test_medio_ejecuta_y_registra_traza(self):
+        with patch("core.trazas.registrar_traza") as traza:
+            assert ejecutar_con_autonomia("registrar_traza", lambda: "ok") == "ok"
+        traza.assert_called_once()
+
+    def test_alto_denegado_no_ejecuta(self):
+        with patch("core.seguridad.esperar_aprobacion", return_value=False), patch(
+            "core.trazas.registrar_traza"
+        ) as traza:
+            resultado = ejecutar_con_autonomia("test_consistencia", lambda: "no")
+        assert resultado["error_type"] == "AprobacionDenegada"
+        traza.assert_not_called()
+
+    def test_alto_aprobado_ejecuta_y_registra_traza(self):
+        with patch("core.seguridad.esperar_aprobacion", return_value=True), patch(
+            "core.trazas.registrar_traza"
+        ) as traza:
+            assert ejecutar_con_autonomia("test_consistencia", lambda: "ok") == "ok"
+        traza.assert_called_once()

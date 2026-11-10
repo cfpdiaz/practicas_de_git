@@ -14,6 +14,7 @@ import json
 import sys
 
 from core.api import obtener_datos_api
+from core.autonomia import ejecutar_con_autonomia
 from core.config import config
 from core.trazas import registrar_traza
 
@@ -27,7 +28,7 @@ def main() -> int:
     print()
     print("=== Resultado del flujo de consumo (sin banderas) ===")
 
-    resultado = obtener_datos_api()
+    resultado = ejecutar_con_autonomia("obtener_datos_api", obtener_datos_api)
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
 
     registrar_traza(

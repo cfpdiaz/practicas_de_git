@@ -27,6 +27,7 @@ from core.resiliencia import (
     clasificar_error,
     ejecutar_con_reintentos,
 )
+from core.seguridad import esperar_aprobacion
 from core.tasks import construir_definiciones_tareas
 
 
@@ -748,4 +749,62 @@ class TestResiliencia:
         assert resultado["status_code"] == 401
         assert "fallback" not in resultado
         assert esperas == []
+        request.assert_called_once()
+
+
+# --------------------------------------------------------------------------- #
+# Aprobación humana (Bloque 23)
+# --------------------------------------------------------------------------- #
+
+class TestAprobacionHumana:
+    def test_respuesta_afirmativa_aprueba(self):
+        with patch("builtins.input", return_value="si"):
+            assert esperar_aprobacion("¿Continuar?") is True
+
+    def test_respuesta_negativa_rechaza(self):
+        with patch("builtins.input", return_value="no"):
+            assert esperar_aprobacion("¿Continuar?") is False
+
+    def test_variantes_afirmativas(self):
+        for respuesta in ("SI", "sí", "s", "yes", "y"):
+            with patch("builtins.input", return_value=respuesta):
+                assert esperar_aprobacion("¿Continuar?") is True
+
+    def test_timeout_rechaza_por_inactividad(self):
+        with patch("sys.stdin.isatty", return_value=True), patch(
+            "select.select", return_value=([], [], [])
+        ), patch("builtins.input") as entrada:
+            assert esperar_aprobacion("¿Continuar?", segundos_timeout=5.0) is False
+            entrada.assert_not_called()
+
+    def test_llamada_real_denegada_no_llama_a_la_api(self):
+        cfg = crear_configuracion(requiere_aprobacion=True)
+        with patch("core.seguridad.esperar_aprobacion", return_value=False) as aprobar, patch(
+            "core.http_client.requests.request"
+        ) as request:
+            resultado = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=cfg)
+        assert resultado["success"] is False
+        assert resultado["error_type"] == "AprobacionDenegada"
+        aprobar.assert_called_once()
+        request.assert_not_called()
+
+    def test_llamada_real_aprobada_continua(self):
+        cfg = crear_configuracion(requiere_aprobacion=True)
+        payload = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {"resumen": "x", "categoria": "y", "prioridad": "alta"}
+                        )
+                    }
+                }
+            ]
+        }
+        response = crear_respuesta_mock(200, payload)
+        with patch("core.seguridad.esperar_aprobacion", return_value=True), patch(
+            "core.http_client.requests.request", return_value=response
+        ) as request:
+            resultado = obtener_datos_api(endpoint=ENDPOINT_PRUEBA, config=cfg)
+        assert resultado["success"] is True
         request.assert_called_once()

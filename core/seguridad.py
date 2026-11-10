@@ -10,13 +10,13 @@ import select
 import sys
 
 
-def esperar_aprobacion(mensaje: str, timeout_segundos: float = 30.0) -> bool:
+def esperar_aprobacion(mensaje: str, segundos_timeout: float = 30.0) -> bool:
     """
     Pide confirmación humana antes de ejecutar una acción de riesgo.
 
     Args:
         mensaje: descripción de la acción que requiere aprobación.
-        timeout_segundos: tiempo máximo de espera (0 o negativo = sin límite).
+        segundos_timeout: tiempo máximo de espera (0 o negativo = sin límite).
 
     Returns:
         True si la respuesta es afirmativa; False si es negativa o si expira
@@ -26,8 +26,8 @@ def esperar_aprobacion(mensaje: str, timeout_segundos: float = 30.0) -> bool:
     print("Escribe 'si' para aprobar o cualquier otra cosa para rechazar:")
 
     try:
-        if sys.stdin.isatty() and timeout_segundos > 0:
-            listo, _, _ = select.select([sys.stdin], [], [], timeout_segundos)
+        if sys.stdin.isatty() and segundos_timeout > 0:
+            listo, _, _ = select.select([sys.stdin], [], [], segundos_timeout)
             if not listo:
                 print("Tiempo agotado: acción rechazada por inactividad.")
                 return False

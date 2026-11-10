@@ -49,4 +49,7 @@ venv.bak/
 htmlcov/
 .pytest_cache/
 
+# Trazas de ejecución del agente (artefacto local, no se versiona)
+trazas_agente.jsonl
+
 # Nota: .env y .venv permanecen ignorados para no filtrar credenciales.

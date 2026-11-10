@@ -32,6 +32,8 @@ from core.api import (
     obtener_datos_api,
 )
 from core.tasks import construir_definiciones_tareas
+from core.seguridad import esperar_aprobacion
+from core.trazas import ARCHIVO_TRAZAS, registrar_traza
 from core.cli import crear_analizador, ejecutar_pruebas, main
 
 __all__ = [
@@ -58,6 +60,9 @@ __all__ = [
     "extraer_texto",
     "obtener_datos_api",
     "construir_definiciones_tareas",
+    "esperar_aprobacion",
+    "registrar_traza",
+    "ARCHIVO_TRAZAS",
     "crear_analizador",
     "ejecutar_pruebas",
     "main",

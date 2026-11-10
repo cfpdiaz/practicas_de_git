@@ -9,6 +9,7 @@ Provee las funciones requeridas por la rúbrica del curso:
 """
 
 import json
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
 import requests
@@ -333,6 +334,23 @@ def obtener_datos_api(
             claves_requeridas=claves_requeridas,
             payload=payload,
         )
+
+    # Aprobación humana antes de una llamada real (impacto económico: cuota).
+    if cfg.requiere_aprobacion:
+        from core.seguridad import esperar_aprobacion
+
+        if not esperar_aprobacion(
+            f"Se realizará una llamada real a la API ({cfg.url_base_api}) con costo de cuota."
+        ):
+            return {
+                "success": False,
+                "status": "error",
+                "error_type": "AprobacionDenegada",
+                "status_code": None,
+                "url": url,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "message": "La llamada fue rechazada por el operador humano.",
+            }
 
     return ClienteHttp(cfg).enviar(
         endpoint=endpoint,

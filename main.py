@@ -15,6 +15,7 @@ import sys
 
 from core.api import obtener_datos_api
 from core.config import config
+from core.trazas import registrar_traza
 
 
 def main() -> int:
@@ -28,6 +29,17 @@ def main() -> int:
 
     resultado = obtener_datos_api()
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
+
+    registrar_traza(
+        entrada="Prompt por defecto (clasificación de incidente técnico)",
+        herramienta="obtener_datos_api",
+        argumentos={"endpoint": "chat/completions", "modelo": config.nombre_modelo},
+        observacion=(
+            f"HTTP {resultado.get('status_code')}"
+            f" | fallback={resultado.get('fallback', False)}"
+        ),
+        respuesta_final=json.dumps(resultado.get("structured_output", {}), ensure_ascii=False),
+    )
 
     return 0 if resultado.get("success") else 1
 

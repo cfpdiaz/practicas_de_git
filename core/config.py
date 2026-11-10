@@ -27,6 +27,7 @@ class ConfiguracionApp:
     nombre_modelo: str
     verificar_ssl: bool
     dominios_confiables: frozenset[str] = DOMINIOS_CONFIABLES_POR_DEFECTO
+    requiere_aprobacion: bool = False
 
     @property
     def host_base(self) -> str:
@@ -71,6 +72,8 @@ def cargar_configuracion() -> ConfiguracionApp:
     nombre_modelo = os.getenv("AI_MODEL", "openai/gpt-oss-120b")
     valor_verificar_ssl = os.getenv("SSL_VERIFY", "true").strip().lower()
     verificar_ssl = valor_verificar_ssl not in ("false", "0", "no", "off")
+    valor_requiere_aprobacion = os.getenv("REQUIERE_APROBACION", "false").strip().lower()
+    requiere_aprobacion = valor_requiere_aprobacion in ("true", "1", "yes", "si", "sí")
 
     return ConfiguracionApp(
         url_base_api=url_base_api,
@@ -78,6 +81,7 @@ def cargar_configuracion() -> ConfiguracionApp:
         segundos_timeout=segundos_timeout,
         nombre_modelo=nombre_modelo,
         verificar_ssl=verificar_ssl,
+        requiere_aprobacion=requiere_aprobacion,
     )
 
 

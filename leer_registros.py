@@ -82,10 +82,9 @@ def leer_y_validar(ruta: Path) -> List[Dict[str, Any]]:
             registros.append(registro)
 
     if errores:
-        print("⚠  Errores de validación encontrados:")
-        for e in errores:
-            print(e)
-        sys.exit(1)
+        raise ValueError(
+            f"Se encontraron errores en el archivo JSONL:\n" + "\n".join(errores)
+        )
 
     if len(registros) < MINIMO_REGISTROS:
         raise ValueError(

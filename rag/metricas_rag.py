@@ -119,6 +119,7 @@ def _extraer_tokens_y_costo(
         "completion_tokens": completion_t,
         "total_tokens": total_t,
         "costo_usd_estimado": costo_usd,
+        "costo_estimado_usd": costo_usd,
     }
 
 

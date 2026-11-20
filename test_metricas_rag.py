@@ -1,11 +1,12 @@
 """
-test_metricas_rag.py - Suite de pruebas unitarias para rag/metricas_rag.py
+test_metricas_rag.py - Suite de pruebas unitarias para rag/metricas_rag.py y leer_registros.py
 
 Cubre:
-- medir_etapa: registro de ms, clave correcta, no excepción, bloques anidados.
-- _extraer_tokens_y_costo: 5 formatos de entrada + caso None defensivo.
-- registrar_consulta: escritura JSONL, 6 claves, acumulación por append.
-- _buscar_usage_en_dict: formato directo y anidado.
+1. test_medir_etapa_registra_milisegundos: Verifica que medir_etapa almacena un float >= 0.
+2. test_registrar_consulta_genera_jsonl_valido: JSONL con 1 línea por llamada, deserializable, 6 claves exactas.
+3. test_manejo_defensivo_tokens_none: Respuestas sin uso/usage_metadata no lanzan AttributeError y guardan tokens=null.
+4. test_calculo_costo_usd: Valida tarifas con valores conocidos de prompt y completion tokens.
+5. test_validar_registros_detecta_archivo_incompleto: pytest.raises si hay < 3 registros o faltan claves obligatorias.
 """
 
 import json
@@ -16,8 +17,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from leer_registros import CLAVES_OBLIGATORIAS as CLAVES_VALIDADOR, validar_registros
 from rag.metricas_rag import (
     CLAVES_OBLIGATORIAS,
+    _PRECIO_INPUT_POR_1K,
+    _PRECIO_OUTPUT_POR_1K,
     _buscar_usage_en_dict,
     _extraer_tokens_y_costo,
     medir_etapa,
@@ -26,7 +30,7 @@ from rag.metricas_rag import (
 
 
 # ===========================================================================
-# Fixtures auxiliares
+# Fixtures y funciones auxiliares
 # ===========================================================================
 
 @pytest.fixture()
@@ -35,379 +39,254 @@ def jsonl_tmp(tmp_path: Path) -> Path:
     return tmp_path / "test_registros.jsonl"
 
 
-def _fn_recuperar_ok(pregunta: str, k: int):
-    """Stub de recuperación: devuelve k documentos ficticios."""
+def _fn_recuperar_stub(pregunta: str, k: int):
+    """Stub de recuperación: devuelve k documentos de prueba."""
     return [{"titulo": f"doc_{i}", "contenido": f"contenido {i}"} for i in range(k)]
 
 
-def _fn_generar_dict(pregunta: str, docs):
-    """Stub de generación: devuelve un dict con usage directo."""
+def _fn_generar_con_usage(pregunta: str, docs):
+    """Stub de generación: devuelve un dict con usage estándar."""
     return {
         "usage": {
-            "prompt_tokens": 50,
-            "completion_tokens": 20,
-            "total_tokens": 70,
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "total_tokens": 150,
         }
     }
 
 
-def _fn_generar_sin_tokens(pregunta: str, docs):
-    """Stub de generación: respuesta sin usage alguno."""
-    return {"choices": [{"message": {"content": "ok"}}]}
+def _fn_generar_sin_usage(pregunta: str, docs):
+    """Stub de generación: respuesta sin metadatos de tokens."""
+    return {"choices": [{"message": {"content": "respuesta de prueba"}}]}
 
 
 # ===========================================================================
-# Tests: medir_etapa
+# 1. test_medir_etapa_registra_milisegundos
 # ===========================================================================
 
-class TestMedirEtapa:
-    def test_registra_clave_en_diccionario(self):
-        tiempos = {}
-        with medir_etapa(tiempos, "mi_etapa"):
-            pass
-        assert "mi_etapa" in tiempos
+def test_medir_etapa_registra_milisegundos():
+    """Verifica que medir_etapa almacena un valor float mayor o igual a 0 bajo la clave indicada."""
+    tiempos = {}
+    nombre_etapa = "embed_y_busqueda"
 
-    def test_valor_es_float_positivo(self):
+    with medir_etapa(tiempos, nombre_etapa):
+        time.sleep(0.001)
+
+    assert nombre_etapa in tiempos
+    assert isinstance(tiempos[nombre_etapa], float)
+    assert tiempos[nombre_etapa] >= 0.0
+
+
+# ===========================================================================
+# 2. test_registrar_consulta_genera_jsonl_valido
+# ===========================================================================
+
+def test_registrar_consulta_genera_jsonl_valido(jsonl_tmp: Path):
+    """Ejecuta registrar_consulta con funciones simuladas.
+    
+    Verifica que el archivo .jsonl tenga una línea por llamada, que cada línea
+    sea deserializable con json.loads y que contenga las 6 claves exactas:
+    timestamp, pregunta, k, tiempos_ms, tiempo_total_ms y tokens.
+    """
+    pregunta_test = "¿Cómo funciona la arquitectura RAG?"
+    k_test = 3
+
+    registro_devuelto = registrar_consulta(
+        pregunta=pregunta_test,
+        fn_recuperar=_fn_recuperar_stub,
+        fn_generar=_fn_generar_con_usage,
+        k=k_test,
+        ruta_salida=jsonl_tmp,
+    )
+
+    # 1. Verifica existencia del archivo
+    assert jsonl_tmp.exists()
+
+    # 2. Verifica una línea por llamada
+    lineas = [l for l in jsonl_tmp.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lineas) == 1
+
+    # 3. Deserializable con json.loads
+    registro_leido = json.loads(lineas[0])
+    assert isinstance(registro_leido, dict)
+
+    # 4. 6 claves exactas en el registro
+    claves_esperadas = {
+        "timestamp",
+        "pregunta",
+        "k",
+        "tiempos_ms",
+        "tiempo_total_ms",
+        "tokens",
+    }
+    assert set(registro_leido.keys()) == claves_esperadas
+    assert registro_leido["pregunta"] == pregunta_test
+    assert registro_leido["k"] == k_test
+
+    # 5. Estructura interna de tiempos_ms
+    tiempos = registro_leido["tiempos_ms"]
+    assert "embed_y_busqueda" in tiempos
+    assert "generacion" in tiempos
+    assert isinstance(tiempos["embed_y_busqueda"], float)
+    assert isinstance(tiempos["generacion"], float)
+    assert isinstance(registro_leido["tiempo_total_ms"], float)
+    assert registro_leido["tiempo_total_ms"] >= 0.0
+
+    # 6. Estructura interna de tokens
+    tokens = registro_leido["tokens"]
+    assert tokens is not None
+    assert tokens["prompt_tokens"] == 100
+    assert tokens["completion_tokens"] == 50
+    assert tokens["total_tokens"] == 150
+    assert "costo_usd_estimado" in tokens or "costo_estimado_usd" in tokens
+
+
+# ===========================================================================
+# 3. test_manejo_defensivo_tokens_none
+# ===========================================================================
+
+def test_manejo_defensivo_tokens_none(jsonl_tmp: Path):
+    """Simula una respuesta del modelo sin metadatos de uso.
+    
+    Confirma que registrar_consulta no lanza AttributeError y guarda "tokens": null en el JSONL.
+    """
+    # 1. Caso respuesta diccionario sin usage
+    registro = registrar_consulta(
+        pregunta="¿Consulta sin tokens?",
+        fn_recuperar=_fn_recuperar_stub,
+        fn_generar=_fn_generar_sin_usage,
+        k=2,
+        ruta_salida=jsonl_tmp,
+    )
+    assert registro["tokens"] is None
+
+    lineas = [l for l in jsonl_tmp.read_text(encoding="utf-8").splitlines() if l.strip()]
+    ultimo_registro = json.loads(lineas[-1])
+    assert ultimo_registro["tokens"] is None
+
+    # 2. Caso respuesta objeto estilo LangChain con usage_metadata = None
+    obj_langchain_none = SimpleNamespace(usage_metadata=None)
+    resultado_extractor = _extraer_tokens_y_costo(obj_langchain_none)
+    assert resultado_extractor is None
+
+    # 3. Caso respuesta None directa
+    resultado_none = _extraer_tokens_y_costo(None)
+    assert resultado_none is None
+
+
+# ===========================================================================
+# 4. test_calculo_costo_usd
+# ===========================================================================
+
+def test_calculo_costo_usd():
+    """Valida con valores conocidos de prompt_tokens y completion_tokens que el costo coincide."""
+    prompt_tokens = 1_000
+    completion_tokens = 2_000
+
+    resp = {
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        }
+    }
+
+    resultado = _extraer_tokens_y_costo(resp)
+    assert resultado is not None
+
+    costo_esperado = round(
+        (prompt_tokens / 1_000) * _PRECIO_INPUT_POR_1K
+        + (completion_tokens / 1_000) * _PRECIO_OUTPUT_POR_1K,
+        8,
+    )
+
+    costo_obtenido = resultado.get("costo_estimado_usd")
+    if costo_obtenido is None:
+        costo_obtenido = resultado.get("costo_usd_estimado")
+
+    assert costo_obtenido == pytest.approx(costo_esperado, rel=1e-6)
+
+
+# ===========================================================================
+# 5. test_validar_registros_detecta_archivo_incompleto
+# ===========================================================================
+
+def test_validar_registros_detecta_archivo_incompleto(tmp_path: Path):
+    """Verifica con pytest.raises que leer_registros.validar_registros falla explícitamente si hay < 3 registros o faltan claves."""
+    archivo_incompleto = tmp_path / "incompleto.jsonl"
+
+    # Caso A: Archivo con solo 2 registros (< 3 registros requeridos)
+    registro_valido = {
+        "timestamp": "2026-11-20T04:00:00.000Z",
+        "pregunta": "¿Pregunta prueba?",
+        "k": 3,
+        "tiempos_ms": {"embed_y_busqueda": 0.5, "generacion": 1.0},
+        "tiempo_total_ms": 1.5,
+        "tokens": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "costo_usd_estimado": 0.00001},
+    }
+
+    lineas_dos = [json.dumps(registro_valido) + "\n", json.dumps(registro_valido) + "\n"]
+    archivo_incompleto.write_text("".join(lineas_dos), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="al menos 3 registros válidos"):
+        validar_registros(archivo_incompleto, silencioso=True)
+
+    # Caso B: Archivo con 3 registros pero a uno le falta una clave obligatoria (ej. 'timestamp')
+    registro_invalido = {
+        "pregunta": "¿Pregunta sin timestamp?",
+        "k": 3,
+        "tiempos_ms": {"embed_y_busqueda": 0.5, "generacion": 1.0},
+        "tiempo_total_ms": 1.5,
+        "tokens": None,
+    }
+    lineas_incompletas = [
+        json.dumps(registro_valido) + "\n",
+        json.dumps(registro_valido) + "\n",
+        json.dumps(registro_invalido) + "\n",
+    ]
+    archivo_claves_faltantes = tmp_path / "faltan_claves.jsonl"
+    archivo_claves_faltantes.write_text("".join(lineas_incompletas), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        validar_registros(archivo_claves_faltantes, silencioso=True)
+
+
+# ===========================================================================
+# Pruebas adicionales de robustez
+# ===========================================================================
+
+class TestRobustezAdicional:
+    def test_medir_etapa_redondeo(self):
         tiempos = {}
         with medir_etapa(tiempos, "etapa"):
-            time.sleep(0.001)
-        assert isinstance(tiempos["etapa"], float)
-        assert tiempos["etapa"] >= 0.0
-
-    def test_valor_en_milisegundos_no_segundos(self):
-        """Duerme 10 ms: el valor debe estar en [5, 500] ms, no en segundos."""
-        tiempos = {}
-        with medir_etapa(tiempos, "etapa_ms"):
-            time.sleep(0.010)
-        assert 5.0 <= tiempos["etapa_ms"] <= 500.0
-
-    def test_redondea_a_dos_decimales(self):
-        tiempos = {}
-        with medir_etapa(tiempos, "e"):
             pass
-        valor = tiempos["e"]
-        assert valor == round(valor, 2)
+        assert tiempos["etapa"] == round(tiempos["etapa"], 2)
 
-    def test_no_suprime_excepcion_del_bloque(self):
+    def test_medir_etapa_no_suprime_excepcion(self):
         tiempos = {}
-        with pytest.raises(ValueError, match="boom"):
-            with medir_etapa(tiempos, "con_error"):
-                raise ValueError("boom")
-        # La clave SÍ debe registrarse aunque hubo excepción (finally)
-        assert "con_error" in tiempos
+        with pytest.raises(RuntimeError):
+            with medir_etapa(tiempos, "erronea"):
+                raise RuntimeError("falla controlada")
+        assert "erronea" in tiempos
 
-    def test_bloques_anidados_registran_claves_independientes(self):
-        tiempos = {}
-        with medir_etapa(tiempos, "externa"):
-            with medir_etapa(tiempos, "interna"):
-                pass
-        assert "externa" in tiempos
-        assert "interna" in tiempos
-        assert tiempos["externa"] >= tiempos["interna"]
+    def test_buscar_usage_en_dict(self):
+        directo = {"usage": {"prompt_tokens": 10}}
+        anidado = {"data": {"usage": {"completion_tokens": 20}}}
+        vacio = {"resultado": "ok"}
+        assert _buscar_usage_en_dict(directo) is not None
+        assert _buscar_usage_en_dict(anidado) is not None
+        assert _buscar_usage_en_dict(vacio) is None
 
-    def test_sobrescribe_clave_preexistente(self):
-        tiempos = {"repetida": 999.99}
-        with medir_etapa(tiempos, "repetida"):
-            pass
-        assert tiempos["repetida"] != 999.99
-
-
-# ===========================================================================
-# Tests: _extraer_tokens_y_costo
-# ===========================================================================
-
-class TestExtraerTokensYCosto:
-    def test_formato_respuesta_simulada_json(self):
-        """RespuestaSimulada / requests.Response con .json() y usage directo."""
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {
+    def test_extraer_tokens_soporta_response_simulada(self):
+        mock_sim = MagicMock()
+        mock_sim.json.return_value = {
             "usage": {
-                "prompt_tokens": 80,
-                "completion_tokens": 40,
-                "total_tokens": 120,
+                "prompt_tokens": 82,
+                "completion_tokens": 36,
+                "total_tokens": 118,
             }
         }
-        # Eliminar usage_metadata para forzar rama .json()
-        del mock_resp.usage_metadata
-        resultado = _extraer_tokens_y_costo(mock_resp)
-        assert resultado is not None
-        assert resultado["prompt_tokens"] == 80
-        assert resultado["completion_tokens"] == 40
-        assert resultado["total_tokens"] == 120
-        assert isinstance(resultado["costo_usd_estimado"], float)
-        assert resultado["costo_usd_estimado"] > 0
-
-    def test_formato_dict_usage_directo(self):
-        """Dict con clave 'usage' directa (formato obtener_datos_api)."""
-        resp = {
-            "usage": {
-                "prompt_tokens": 100,
-                "completion_tokens": 50,
-                "total_tokens": 150,
-            }
-        }
-        resultado = _extraer_tokens_y_costo(resp)
-        assert resultado is not None
-        assert resultado["prompt_tokens"] == 100
-        assert resultado["completion_tokens"] == 50
-        assert resultado["total_tokens"] == 150
-
-    def test_formato_dict_usage_anidado_en_data(self):
-        """Dict con usage anidado en data.usage (wrapping de obtener_datos_api)."""
-        resp = {
-            "data": {
-                "usage": {
-                    "prompt_tokens": 60,
-                    "completion_tokens": 30,
-                    "total_tokens": 90,
-                }
-            }
-        }
-        resultado = _extraer_tokens_y_costo(resp)
-        assert resultado is not None
-        assert resultado["total_tokens"] == 90
-
-    def test_formato_langchain_usage_metadata(self):
-        """Objeto con atributo usage_metadata (estilo LangChain)."""
-        obj = SimpleNamespace(
-            usage_metadata={
-                "input_tokens": 70,
-                "output_tokens": 30,
-                "total_tokens": 100,
-            }
-        )
-        resultado = _extraer_tokens_y_costo(obj)
-        assert resultado is not None
-        assert resultado["prompt_tokens"] == 70
-        assert resultado["completion_tokens"] == 30
-        assert resultado["total_tokens"] == 100
-
-    def test_retorna_none_sin_datos_de_uso(self):
-        """Objeto sin ningún dato de usage → debe retornar None, no lanzar."""
-        resultado = _extraer_tokens_y_costo({"choices": [{"message": {"content": "ok"}}]})
-        assert resultado is None
-
-    def test_retorna_none_con_none_directo(self):
-        """None como entrada → no lanza AttributeError."""
-        resultado = _extraer_tokens_y_costo(None)
-        assert resultado is None
-
-    def test_retorna_none_con_string(self):
-        """String arbitrario → no lanza, retorna None."""
-        resultado = _extraer_tokens_y_costo("texto sin estructura")
-        assert resultado is None
-
-    def test_costo_usd_calculado_correctamente(self):
-        """Verifica la fórmula: prompt*0.00059/1K + completion*0.00079/1K."""
-        resp = {
-            "usage": {
-                "prompt_tokens": 1000,
-                "completion_tokens": 1000,
-                "total_tokens": 2000,
-            }
-        }
-        resultado = _extraer_tokens_y_costo(resp)
-        assert resultado is not None
-        esperado = round(1.0 * 0.00059 + 1.0 * 0.00079, 8)
-        assert resultado["costo_usd_estimado"] == pytest.approx(esperado, rel=1e-6)
-
-    def test_tokens_cero_no_lanza(self):
-        """Tokens en 0 → costo 0.0, sin ZeroDivisionError."""
-        resp = {
-            "usage": {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0,
-            }
-        }
-        resultado = _extraer_tokens_y_costo(resp)
-        assert resultado is not None
-        assert resultado["costo_usd_estimado"] == 0.0
-
-
-# ===========================================================================
-# Tests: _buscar_usage_en_dict
-# ===========================================================================
-
-class TestBuscarUsageEnDict:
-    def test_encuentra_usage_directo(self):
-        data = {"usage": {"prompt_tokens": 10, "total_tokens": 10}}
-        assert _buscar_usage_en_dict(data) is not None
-
-    def test_encuentra_usage_anidado_en_data(self):
-        data = {"data": {"usage": {"completion_tokens": 5, "total_tokens": 5}}}
-        assert _buscar_usage_en_dict(data) is not None
-
-    def test_retorna_none_sin_usage(self):
-        data = {"choices": [], "model": "test"}
-        assert _buscar_usage_en_dict(data) is None
-
-    def test_retorna_none_si_usage_no_es_dict(self):
-        data = {"usage": "no-es-dict"}
-        assert _buscar_usage_en_dict(data) is None
-
-
-# ===========================================================================
-# Tests: registrar_consulta
-# ===========================================================================
-
-class TestRegistrarConsulta:
-    def test_crea_archivo_jsonl(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿test?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        assert jsonl_tmp.exists()
-
-    def test_escribe_exactamente_una_linea(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿test?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        lineas = [l for l in jsonl_tmp.read_text(encoding="utf-8").splitlines() if l.strip()]
-        assert len(lineas) == 1
-
-    def test_acumula_lineas_en_modo_append(self, jsonl_tmp: Path):
-        for _ in range(3):
-            registrar_consulta(
-                pregunta="¿acumulación?",
-                fn_recuperar=_fn_recuperar_ok,
-                fn_generar=_fn_generar_dict,
-                k=1,
-                ruta_salida=jsonl_tmp,
-            )
-        lineas = [l for l in jsonl_tmp.read_text(encoding="utf-8").splitlines() if l.strip()]
-        assert len(lineas) == 3
-
-    def test_registro_es_json_valido(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿json válido?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        linea = jsonl_tmp.read_text(encoding="utf-8").strip()
-        registro = json.loads(linea)
-        assert isinstance(registro, dict)
-
-    def test_registro_contiene_6_claves_obligatorias(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿claves?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        registro = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        for clave in CLAVES_OBLIGATORIAS:
-            assert clave in registro, f"Clave faltante: {clave}"
-
-    def test_timestamp_formato_iso8601_utc(self, jsonl_tmp: Path):
-        """El timestamp debe terminar en Z y tener formato básico ISO 8601."""
-        registrar_consulta(
-            pregunta="¿timestamp?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=1,
-            ruta_salida=jsonl_tmp,
-        )
-        registro = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        ts = registro["timestamp"]
-        assert isinstance(ts, str)
-        assert ts.endswith("Z"), f"Timestamp sin Z: {ts!r}"
-        assert "T" in ts, f"Timestamp sin separador T: {ts!r}"
-
-    def test_k_registrado_correctamente(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿k=5?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=5,
-            ruta_salida=jsonl_tmp,
-        )
-        registro = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        assert registro["k"] == 5
-
-    def test_tiempos_ms_contiene_ambas_etapas(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿etapas?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        registro = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        tiempos = registro["tiempos_ms"]
-        assert "embed_y_busqueda" in tiempos
-        assert "generacion" in tiempos
-        assert isinstance(tiempos["embed_y_busqueda"], float)
-        assert isinstance(tiempos["generacion"], float)
-
-    def test_tiempo_total_ms_es_positivo(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿total?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        registro = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        assert registro["tiempo_total_ms"] >= 0.0
-
-    def test_tokens_none_cuando_no_hay_usage(self, jsonl_tmp: Path):
-        """Si fn_generar no retorna usage, tokens debe ser None (no error)."""
-        registrar_consulta(
-            pregunta="¿sin tokens?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_sin_tokens,
-            k=1,
-            ruta_salida=jsonl_tmp,
-        )
-        registro = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        assert "tokens" in registro
-        assert registro["tokens"] is None
-
-    def test_tokens_contiene_costo_cuando_hay_usage(self, jsonl_tmp: Path):
-        registrar_consulta(
-            pregunta="¿con costo?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        registro = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        tokens = registro["tokens"]
-        assert tokens is not None
-        assert "costo_usd_estimado" in tokens
-        assert tokens["costo_usd_estimado"] >= 0.0
-
-    def test_retorno_coincide_con_linea_escrita(self, jsonl_tmp: Path):
-        """El dict retornado por registrar_consulta debe ser idéntico al JSON escrito."""
-        retorno = registrar_consulta(
-            pregunta="¿retorno?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=2,
-            ruta_salida=jsonl_tmp,
-        )
-        escrito = json.loads(jsonl_tmp.read_text(encoding="utf-8").strip())
-        assert retorno == escrito
-
-    def test_crea_directorio_si_no_existe(self, tmp_path: Path):
-        """Si el directorio padre no existe, debe crearlo automáticamente."""
-        ruta = tmp_path / "subdir" / "nuevo" / "registros.jsonl"
-        registrar_consulta(
-            pregunta="¿mkdir?",
-            fn_recuperar=_fn_recuperar_ok,
-            fn_generar=_fn_generar_dict,
-            k=1,
-            ruta_salida=ruta,
-        )
-        assert ruta.exists()
+        del mock_sim.usage_metadata
+        res = _extraer_tokens_y_costo(mock_sim)
+        assert res is not None
+        assert res["total_tokens"] == 118

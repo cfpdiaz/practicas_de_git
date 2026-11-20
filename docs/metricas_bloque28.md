@@ -88,24 +88,45 @@ Resultados obtenidos con `python correr_bloque28.py --offline` sobre 3 consultas
 
 ---
 
-## Modelo de costo estimado
+## Análisis técnico de resultados: Latencia y Costos
 
-Los precios usados corresponden a **openai/gpt-oss-120b** vía Groq:
+A partir de las entradas registradas en `registros_latencia_costo.jsonl`:
 
-| Tipo de token | Precio por 1 000 tokens (USD) |
-|---|---|
-| Prompt (entrada) | \$0.00059 |
-| Completion (salida) | \$0.00079 |
+### 1. Comparativa de Latencia: `embed_y_busqueda` vs. `generacion`
 
-**Fórmula:**
-```
-costo_usd = (prompt_tokens / 1000) × 0.00059
-           + (completion_tokens / 1000) × 0.00079
-```
+| Etapa | Latencia Promedio (Simulación) | Latencia Esperada (Producción / API Real) | Factor Limitante |
+|---|---|---|---|
+| **`embed_y_busqueda`** | **0.32 ms** | **15 - 80 ms** | Tamaño del corpus / índice vectorial y concurrencia |
+| **`generacion`** | **0.18 ms** (mock en RAM) | **600 - 2,500 ms** | Decodificación autorregresiva token por token y RTT de red |
+
+#### ¿Por qué la etapa de generación domina el tiempo total en producción?
+1. **Decodificación autorregresiva token-por-token ($O(N_{out})$)**: Mientras que la fase de *prefill* (evaluación del prompt y contexto) se procesa de forma altamente paralelizada en GPU, la generación de la respuesta es estrictamente secuencial; cada token nuevo depende de todos los anteriores, estando limitada por el ancho de banda de memoria (*memory bandwidth bound* en inferencia LLM con KV Cache).
+2. **Latencia de Red y Transporte (RTT)**: El viaje HTTP/TLS entre la aplicación y el endpoint de inferencia (ej. `api.groq.com`) agrega decenas o centenas de milisegundos que no existen en el cálculo puramente local.
+3. **Complejidad algorítmica de la búsqueda**: La etapa de recuperación léxica (TF-IDF sobre 8 documentos) o búsqueda vectorial sobre embeddings precalculados requiere únicamente operaciones de producto punto / similitud coseno en memoria principal, completándose en fracciones de milisegundo ($O(N \cdot D)$ con $N \ll 10^5$).
+
+---
+
+### 2. Consumo de Tokens y Proyección de Costo (10,000 consultas)
+
+Tarifas configuradas para `openai/gpt-oss-120b` / Groq:
+- **Prompt**: \$0.00059 por 1,000 tokens (\$0.00000059 / token)
+- **Completion**: \$0.00079 por 1,000 tokens (\$0.00000079 / token)
+
+#### Métricas por consulta individual:
+- **Prompt tokens promedio**: 82 tokens
+- **Completion tokens promedio**: 36 tokens
+- **Total tokens promedio**: 118 tokens
+- **Costo estimado por consulta**: **\$0.00007682 USD** (~**\$0.000077 USD**)
+
+#### Proyección a escala (10,000 consultas RAG):
+- **Prompt tokens proyectados**: $82 \times 10,000 = \mathbf{820,000\text{ tokens}}$
+- **Completion tokens proyectados**: $36 \times 10,000 = \mathbf{360,000\text{ tokens}}$
+- **Total tokens consumidos**: $\mathbf{1,180,000\text{ tokens}}$ (1.18 M tokens)
+- **Costo económico proyectado**:
+  $$\text{Costo Total} = 10,000 \times \$0.00007682 = \mathbf{\$0.7682\text{ USD}}$$
 
 > [!TIP]
-> Ajusta `_PRECIO_INPUT_POR_1K` y `_PRECIO_OUTPUT_POR_1K` en `rag/metricas_rag.py`
-> si cambias de modelo o proveedor.
+> Incluso a un ritmo de 10,000 consultas RAG, el gasto operativo es de apenas **\$0.77 USD**, demostrando la viabilidad económica de la arquitectura con modelos OSS eficientes y contexto acotado con $k=3$.
 
 ---
 
